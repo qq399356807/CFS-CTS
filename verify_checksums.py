@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Verify the committed SHA256SUMS.txt manifest."""
+"""Verify committed SHA-256 digests against the exact checked-out file bytes."""
 import hashlib
 from pathlib import Path
 
+manifest = Path("SHA256SUMS.txt")
 errors = []
 checked = 0
-for number, raw in enumerate(Path("SHA256SUMS.txt").read_text(encoding="utf-8").splitlines(), 1):
+for number, raw in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 1):
     if not raw.strip():
         continue
     try:
@@ -22,6 +23,6 @@ for number, raw in enumerate(Path("SHA256SUMS.txt").read_text(encoding="utf-8").
     if actual != expected:
         errors.append(f"{relative}: expected {expected}, got {actual}")
 if errors:
-    print("\n".join(errors))
+    print("\\n".join(errors))
     raise SystemExit(1)
 print(f"Verified {checked} SHA-256 entries.")
