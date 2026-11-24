@@ -1,4 +1,4 @@
-# Changelog
+# Changelog\n\n## 0.1.3-dev — historical anchor prefix verification (in progress)\n\n- Verify each historical checkpoint's ledger sequence is an integer within the supplied ledger range.\n- Verify each checkpoint head matches the hash at its exact ledger prefix, not only the latest ledger head.\n- Add adversarial cases for a wrong prefix with a recomputed valid checkpoint digest, out-of-range checkpoint sequence, and valid multi-checkpoint history.\n- Preserve the local-anchor trust limitation; no external trust root or automatic recovery is added.\n
 
 ## 0.1.2 — batch retry idempotency
 
