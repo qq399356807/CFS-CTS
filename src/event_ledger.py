@@ -25,7 +25,7 @@ class EventLedger:
         if not self.path.exists():
             return []
         raw = self.path.read_bytes()
-        if raw and not raw.endswith(b'\\n'):
+        if raw and not raw.endswith(b'\n'):
             raise ValueError('truncated JSONL tail')
         rows = []
         for i, line in enumerate(raw.splitlines(), 1):
@@ -76,7 +76,7 @@ class EventLedger:
                     if len(encoded) > self.MAX_EVENT_BYTES:
                         raise ValueError('event exceeds maximum encoded size')
                     record = {**core, 'hash': self._digest(core)}
-                    data = canonical_bytes(record) + b'\\n'
+                    data = canonical_bytes(record) + b'\n'
                     with self.path.open('ab') as f:
                         f.write(data)
                         f.flush()
@@ -202,7 +202,7 @@ class EventLedger:
                         if len(encoded) > self.MAX_EVENT_BYTES:
                             raise ValueError(f'events[{index}] exceeds maximum encoded size')
                         record = {**core, 'hash': self._digest(core)}
-                        chunk = canonical_bytes(record) + b'\\n'
+                        chunk = canonical_bytes(record) + b'\n'
                         chunks.append(chunk)
                         records.append(record)
                         total_bytes += len(chunk)
@@ -246,7 +246,7 @@ def _lock(f):
             import msvcrt
             f.seek(0, os.SEEK_END)
             if f.tell() == 0:
-                f.write(b'\\0')
+                f.write(b'\0')
                 f.flush()
             f.seek(0)
             msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
