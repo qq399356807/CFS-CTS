@@ -29,7 +29,7 @@ def main():
         ('SEC-13', 'conflicting batch retry rejected', sec.test_batch_conflict),
         ('SEC-14', 'incomplete batch retry rejected', sec.test_incomplete_batch),
         ('SEC-15', 'batch causal ordering enforced', sec.test_batch_validation),
-        ('SEC-16', 'batch lock failure is fail-closed', sec.test_batch_lock_failure_closed),
+        ('SEC-16', 'batch lock failure is fail-closed', sec.test_batch_lock_failure_closed),\n        ('SEC-17', 'historical anchor prefix mismatch rejected', sec.test_anchor_prefix_mismatch_with_valid_digest),\n        ('SEC-18', 'anchor checkpoint sequence range enforced', sec.test_anchor_sequence_out_of_range),\n        ('SEC-19', 'valid historical anchor prefixes accepted', sec.test_valid_anchor_prefix_history),
     ]
     out = []
     for ident, name, fn in cases:
@@ -53,7 +53,7 @@ def main():
                 [traceback.format_exc()]
             ).as_dict())
     report = {
-        'project': 'CFS CTS Core', 'version': '0.1.2',
+        'project': 'CFS CTS Core', 'version': '0.1.3-dev',
         'python': sys.version, 'platform': platform.platform(),
         'generated_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
         'external_anchor_configured': False,
