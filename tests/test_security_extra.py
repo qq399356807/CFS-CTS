@@ -208,3 +208,52 @@ def test_anchor_history_tamper():
     result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
     assert any(x['type'] == 'ANCHOR_DIGEST_MISMATCH' for x in result['issues'])
     return {'intermediate_checkpoint_tamper_detected': True}
+
+
+def test_anchor_prefix_mismatch_with_valid_digest():
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    fixture.add('prefix-one')
+    fixture.ledger.anchor(fixture.anchor)
+    fixture.add('prefix-two')
+    history = fixture.anchor.history()
+    history[0]['head'] = 'f' * 64
+    history[0]['checkpoint_digest'] = checkpoint_digest(
+        history[0]['ledger_version'], history[0]['ledger_seq'], history[0]['head']
+    )
+    fixture.anchor.path.write_text(''.join(
+        json.dumps(x, sort_keys=True, separators=(',', ':')) + '\\n' for x in history
+    ))
+    result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
+    assert any(x['type'] == 'ANCHOR_PREFIX_MISMATCH' for x in result['issues'])
+    assert not any(x['type'] == 'ANCHOR_DIGEST_MISMATCH' for x in result['issues'])
+    return {'valid_digest_wrong_prefix_rejected': True}
+
+
+def test_anchor_sequence_out_of_range():
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    fixture.add('range-one')
+    fixture.ledger.anchor(fixture.anchor)
+    history = fixture.anchor.history()
+    history[0]['ledger_seq'] = 99
+    history[0]['checkpoint_digest'] = checkpoint_digest(
+        history[0]['ledger_version'], history[0]['ledger_seq'], history[0]['head']
+    )
+    fixture.anchor.path.write_text(''.join(
+        json.dumps(x, sort_keys=True, separators=(',', ':')) + '\\n' for x in history
+    ))
+    result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
+    assert any(x['type'] == 'ANCHOR_LEDGER_SEQUENCE_RANGE' for x in result['issues'])
+    return {'out_of_range_checkpoint_rejected_without_exception': True}
+
+
+def test_valid_anchor_prefix_history():
+    fixture = Fixture()
+    fixture.add('history-one')
+    fixture.ledger.anchor(fixture.anchor)
+    fixture.add('history-two')
+    fixture.ledger.anchor(fixture.anchor)
+    result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
+    assert result['ok'], result['issues']
+    return {'valid_historical_prefixes_accepted': True, 'checkpoints': len(fixture.anchor.history())}
