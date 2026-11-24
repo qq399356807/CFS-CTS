@@ -23,6 +23,8 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Compile
         run: python -m compileall -q src tests
+      - name: Verify source checksums
+        run: python verify_checksums.py
       - name: Run adversarial suite
         run: python run_tests.py
       - name: Upload reports
