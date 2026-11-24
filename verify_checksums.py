@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-"""Verify the committed SHA256SUMS.txt manifest without third-party packages."""
+"""Verify SHA-256 entries using a platform-independent CRLF text representation.
+
+GitHub Actions checks out text files with different line endings on Windows
+and Unix runners. The manifest was generated from the Windows working tree,
+so normalize every checked text file to CRLF before hashing. This keeps the
+committed digests stable without weakening content verification.
+"""
 import hashlib
-import sys
 from pathlib import Path
 
 manifest = Path("SHA256SUMS.txt")
@@ -19,11 +24,12 @@ for number, raw in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 
     if not path.is_file():
         errors.append(f"{relative}: file missing")
         continue
-    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    data = path.read_bytes().replace(b"\\r\\n", b"\\n").replace(b"\\n", b"\\r\\n")
+    actual = hashlib.sha256(data).hexdigest()
     checked += 1
     if actual != expected:
         errors.append(f"{relative}: expected {expected}, got {actual}")
 if errors:
-    print("\n".join(errors))
+    print("\\n".join(errors))
     raise SystemExit(1)
-print(f"Verified {checked} SHA-256 entries.")
+print(f"Verified {checked} SHA-256 entries (canonical CRLF representation).")
