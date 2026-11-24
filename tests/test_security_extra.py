@@ -222,7 +222,7 @@ def test_anchor_prefix_mismatch_with_valid_digest():
         history[0]['ledger_version'], history[0]['ledger_seq'], history[0]['head']
     )
     fixture.anchor.path.write_text(''.join(
-        json.dumps(x, sort_keys=True, separators=(',', ':')) + '\\n' for x in history
+        json.dumps(x, sort_keys=True, separators=(',', ':')) + '\n' for x in history
     ))
     result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
     assert any(x['type'] == 'ANCHOR_PREFIX_MISMATCH' for x in result['issues'])
@@ -241,7 +241,7 @@ def test_anchor_sequence_out_of_range():
         history[0]['ledger_version'], history[0]['ledger_seq'], history[0]['head']
     )
     fixture.anchor.path.write_text(''.join(
-        json.dumps(x, sort_keys=True, separators=(',', ':')) + '\\n' for x in history
+        json.dumps(x, sort_keys=True, separators=(',', ':')) + '\n' for x in history
     ))
     result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
     assert any(x['type'] == 'ANCHOR_LEDGER_SEQUENCE_RANGE' for x in result['issues'])
