@@ -67,7 +67,7 @@ def main():
             'SHA-256 is unkeyed and does not protect against an attacker able to rewrite the ledger.'
         ]
     }
-    Path('reports/test_report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\\n', encoding='utf-8')
+    Path('reports/test_report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     lines = [
         '# CFS-CTS Core 0.1.2 — 实测报告', '',
         f"运行环境：Python {sys.version.split()[0]} / {platform.platform()}", '',
@@ -76,10 +76,10 @@ def main():
         '| ID | 测试 | 状态 | 实际结果摘要 |', '|---|---|---|---|'
     ]
     for result in out:
-        actual = result['actual'][:220].replace('|', '\\\\|')
+        actual = result['actual'][:220].replace('|', '\\|')
         lines.append(f"| {result['test_id']} | {result['steps'][0]} | **{result['status']}** | {actual} |")
     lines += ['', '## 风险/未实现', ''] + [f'- {item}' for item in report['limitations']]
-    Path('reports/test_report.md').write_text('\\n'.join(lines) + '\\n', encoding='utf-8')
+    Path('reports/test_report.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print(json.dumps(report['summary'], ensure_ascii=False))
     print('Reports: reports/test_report.json and reports/test_report.md')
     return 1 if report['summary']['FAIL'] else 0
