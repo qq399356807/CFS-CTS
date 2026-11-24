@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify SHA-256 entries using canonical LF bytes on every platform."""
+"""Verify SHA-256 entries after normalizing checkout line endings to LF."""
 import hashlib
 from pathlib import Path
 
@@ -26,4 +26,4 @@ for number, raw in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 
 if errors:
     print("\n".join(errors))
     raise SystemExit(1)
-print(f"Verified {checked} SHA-256 entries (canonical LF representation).")
+print(f"Verified {checked} SHA-256 entries (LF-normalized).")
