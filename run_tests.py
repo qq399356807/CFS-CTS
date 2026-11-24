@@ -72,7 +72,7 @@ def main():
     }
     Path('reports/test_report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     lines = [
-        '# CFS-CTS Core {report['version']} — 实测报告', '',
+        f"# CFS-CTS Core {report['version']} — 实测报告", '',
         f"运行环境：Python {sys.version.split()[0]} / {platform.platform()}", '',
         f"汇总：{report['summary']}", '',
         '> 报告由当前运行器生成。CORE-06 的 PASS 仅表示本地同时重建的边界演示，不代表抵御同权限攻击者。无外部锚点。', '',
