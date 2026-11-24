@@ -1,5 +1,13 @@
-# Changelog\n\n## 0.1.3 — historical anchor prefix verification\n\n- Verify each historical checkpoint's ledger sequence is an integer within the supplied ledger range.\n- Verify each checkpoint head matches the hash at its exact ledger prefix, not only the latest ledger head.\n- Add adversarial cases for a wrong prefix with a recomputed valid checkpoint digest, out-of-range checkpoint sequence, and valid multi-checkpoint history.\n- Preserve the local-anchor trust limitation; no external trust root or automatic recovery is added.
-- Validate the historical anchor-prefix checks across Linux, Windows, and macOS on Python 3.11–3.13: 26 PASS, 0 FAIL, 0 BLOCKED.\n
+# Changelog
+
+## 0.1.3 — historical anchor prefix verification
+
+- Verify each historical checkpoint's ledger sequence is an integer within the supplied ledger range.
+- Verify each checkpoint head matches the hash at its exact ledger prefix, not only the latest ledger head.
+- Add adversarial cases for a wrong prefix with a recomputed valid checkpoint digest, out-of-range checkpoint sequence, and valid multi-checkpoint history.
+- Preserve the local-anchor trust limitation; no external trust root or automatic recovery is added.
+- Validate the historical anchor-prefix checks across Linux, Windows, and macOS on Python 3.11–3.13: 26 PASS, 0 FAIL, 0 BLOCKED.
+
 
 ## 0.1.2 — batch retry idempotency
 
