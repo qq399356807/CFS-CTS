@@ -7,6 +7,7 @@
 - Reject conflicting batch-ID reuse, duplicate event IDs, forward causal references, and malformed batch inputs.
 - Include batch index, size, and normalized-request digest in the hash-chained event records.
 - Normalize payloads through canonical JSON before digesting so retries are stable across JSON-compatible container types.
+- Preserve JSONL record delimiters and the Windows lock byte as actual single-byte escapes.
 - Serialize the complete batch under the existing fail-closed cross-process lock.
 - Detect incomplete prior batches and reject retries for forensic review; do not silently repair or discard ledger data.
 - Expand adversarial tests for exact retries, conflicting retries, incomplete batches, causal ordering, and lock failure.
