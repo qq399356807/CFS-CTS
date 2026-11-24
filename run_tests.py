@@ -56,7 +56,7 @@ def main():
                 [traceback.format_exc()]
             ).as_dict())
     report = {
-        'project': 'CFS CTS Core', 'version': '0.1.3-dev',
+        'project': 'CFS CTS Core', 'version': '0.1.3',
         'python': sys.version, 'platform': platform.platform(),
         'generated_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
         'external_anchor_configured': False,

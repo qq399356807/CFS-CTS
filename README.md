@@ -1,4 +1,4 @@
-# CFS-CTS Core 0.1.3-dev
+# CFS-CTS Core 0.1.3
 
 Chronological Trust & Security core, Python 3.11+. Standard library only. This is a prototype audit component, **not a production tamper-proof logging system**.
 
