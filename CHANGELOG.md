@@ -6,6 +6,7 @@
 - Return original event records for exact retries without adding duplicate rows or generating new timestamps.
 - Reject conflicting batch-ID reuse, duplicate event IDs, forward causal references, and malformed batch inputs.
 - Include batch index, size, and normalized-request digest in the hash-chained event records.
+- Normalize payloads through canonical JSON before digesting so retries are stable across JSON-compatible container types.
 - Serialize the complete batch under the existing fail-closed cross-process lock.
 - Detect incomplete prior batches and reject retries for forensic review; do not silently repair or discard ledger data.
 - Expand adversarial tests for exact retries, conflicting retries, incomplete batches, causal ordering, and lock failure.
