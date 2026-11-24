@@ -12,6 +12,7 @@
 - Serialize the complete batch under the existing fail-closed cross-process lock.
 - Detect incomplete prior batches and reject retries for forensic review; do not silently repair or discard ledger data.
 - Expand adversarial tests for exact retries, conflicting retries, incomplete batches, causal ordering, and lock failure.
+- Record the 23-pass, 0-fail, 0-blocked cross-platform CI validation result.
 - Batch append is not a crash-atomic filesystem transaction. External anchoring remains unconfigured; no production security claim is implied.
 
 ## 0.1.1 — hardening
