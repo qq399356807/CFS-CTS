@@ -123,7 +123,7 @@ def test_incomplete_batch():
     ]
     fixture.ledger.append_many('request-003', batch)
     rows = fixture.ledger.events()
-    fixture.ledger.path.write_bytes((json.dumps(rows[0], sort_keys=True, ensure_ascii=False, separators=(',', ':')) + '\\n').encode())
+    fixture.ledger.path.write_bytes((json.dumps(rows[0], sort_keys=True, ensure_ascii=False, separators=(',', ':')) + '\n').encode())
     try:
         fixture.ledger.append_many('request-003', batch)
     except RuntimeError as exc:
@@ -203,7 +203,7 @@ def test_anchor_history_tamper():
     history = fixture.anchor.history()
     history[0]['head'] = 'f' * 64
     fixture.anchor.path.write_text(''.join(
-        json.dumps(x, sort_keys=True, separators=(',', ':')) + '\\n' for x in history
+        json.dumps(x, sort_keys=True, separators=(',', ':')) + '\n' for x in history
     ))
     result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
     assert any(x['type'] == 'ANCHOR_DIGEST_MISMATCH' for x in result['issues'])
