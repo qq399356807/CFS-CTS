@@ -30,6 +30,9 @@ def main():
         ('SEC-14', 'incomplete batch retry rejected', sec.test_incomplete_batch),
         ('SEC-15', 'batch causal ordering enforced', sec.test_batch_validation),
         ('SEC-16', 'batch lock failure is fail-closed', sec.test_batch_lock_failure_closed),
+        ('SEC-17', 'historical anchor prefix mismatch rejected', sec.test_anchor_prefix_mismatch_with_valid_digest),
+        ('SEC-18', 'anchor checkpoint sequence range enforced', sec.test_anchor_sequence_out_of_range),
+        ('SEC-19', 'valid historical anchor prefixes accepted', sec.test_valid_anchor_prefix_history),
     ]
     out = []
     for ident, name, fn in cases:
@@ -53,7 +56,7 @@ def main():
                 [traceback.format_exc()]
             ).as_dict())
     report = {
-        'project': 'CFS CTS Core', 'version': '0.1.2',
+        'project': 'CFS CTS Core', 'version': '0.1.3-dev',
         'python': sys.version, 'platform': platform.platform(),
         'generated_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
         'external_anchor_configured': False,
@@ -69,7 +72,7 @@ def main():
     }
     Path('reports/test_report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     lines = [
-        '# CFS-CTS Core 0.1.2 — 实测报告', '',
+        f"# CFS-CTS Core {report['version']} — 实测报告", '',
         f"运行环境：Python {sys.version.split()[0]} / {platform.platform()}", '',
         f"汇总：{report['summary']}", '',
         '> 报告由当前运行器生成。CORE-06 的 PASS 仅表示本地同时重建的边界演示，不代表抵御同权限攻击者。无外部锚点。', '',

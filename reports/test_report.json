@@ -1,13 +1,12 @@
 {
   "project": "CFS-CTS Core",
-  "version": "0.1.2",
-  "validation_commit": "34d7190c81058dcf21ade0cd04ea6d629998259a",
-  "validation_run": "https://github.com/qq399356807/CFS-CTS/actions/runs/45371260968",
-  "generated_utc": "2026-11-24T10:04:49Z",
-  "environment": "GitHub Actions matrix: Python 3.11, 3.12, 3.13 on Ubuntu, Windows, and macOS",
+  "version": "0.1.3-dev",
+  "validation_run": "https://github.com/qq399356807/CFS-CTS/actions/runs/45376452928",
+  "generated_utc": "2026-11-24T10:37:00Z",
+  "environment": "GitHub Actions matrix: Python 3.11–3.13 on Ubuntu, Windows, and macOS",
   "external_anchor_configured": false,
   "summary": {
-    "PASS": 23,
+    "PASS": 26,
     "FAIL": 0,
     "BLOCKED": 0,
     "INCONCLUSIVE": 0
@@ -60,7 +59,7 @@
     },
     {
       "test_id": "SEC-03",
-      "name": "partial write/crash tail detection",
+      "name": "partial write/crash tail",
       "status": "PASS"
     },
     {
@@ -75,12 +74,12 @@
     },
     {
       "test_id": "SEC-06",
-      "name": "missing parent rejection",
+      "name": "missing parent",
       "status": "PASS"
     },
     {
       "test_id": "SEC-07",
-      "name": "oversized event rejection",
+      "name": "oversized event",
       "status": "PASS"
     },
     {
@@ -127,10 +126,25 @@
       "test_id": "SEC-16",
       "name": "batch lock failure is fail-closed",
       "status": "PASS"
+    },
+    {
+      "test_id": "SEC-17",
+      "name": "historical anchor prefix mismatch rejected",
+      "status": "PASS"
+    },
+    {
+      "test_id": "SEC-18",
+      "name": "anchor checkpoint sequence range enforced",
+      "status": "PASS"
+    },
+    {
+      "test_id": "SEC-19",
+      "name": "valid historical anchor prefixes accepted",
+      "status": "PASS"
     }
   ],
   "limitations": [
-    "CORE-06 confirms that a same-privilege local rebuild of both ledger and simulated anchor is not detected.",
+    "CORE-06 confirms a same-privilege local rebuild of both ledger and simulated anchor is not detected.",
     "No independently administered remote anchor is configured.",
     "Batch retry idempotency is not a crash-atomic filesystem transaction; incomplete batches require forensic review and are not automatically repaired.",
     "File-lock and fsync guarantees remain dependent on operating system, filesystem, and deployment environment.",
