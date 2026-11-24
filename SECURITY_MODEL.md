@@ -1,4 +1,4 @@
-# CFS-CTS Core 0.1.3-dev — Security model
+# CFS-CTS Core 0.1.3 — Security model
 
 ## Scope
 
@@ -43,6 +43,6 @@ This is an application-level retry-idempotency contract, not an atomic storage t
 
 Passing the local test suite demonstrates only that the tested assertions held in that environment. It does not establish resistance to an adaptive attacker or satisfy a legal/compliance standard.
 
-## Historical anchor-to-ledger continuity (0.1.3 development)
+## Historical anchor-to-ledger continuity (0.1.3)
 
 When an anchor history is supplied to the verifier, every checkpoint is checked against the ledger prefix it claims to represent. The checkpoint's `ledger_seq` must be an integer (not a boolean) in the range zero through the supplied ledger length; its `head` must equal the hash at exactly that prefix (the genesis hash for sequence zero). The checkpoint digest and monotonic anchor/ledger sequence checks remain in force. This detects internally inconsistent local history, but does not make a locally stored anchor independently trustworthy: a same-privilege attacker can rewrite both files and recompute unkeyed digests.
