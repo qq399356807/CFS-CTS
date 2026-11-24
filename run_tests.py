@@ -29,7 +29,10 @@ def main():
         ('SEC-13', 'conflicting batch retry rejected', sec.test_batch_conflict),
         ('SEC-14', 'incomplete batch retry rejected', sec.test_incomplete_batch),
         ('SEC-15', 'batch causal ordering enforced', sec.test_batch_validation),
-        ('SEC-16', 'batch lock failure is fail-closed', sec.test_batch_lock_failure_closed),\n        ('SEC-17', 'historical anchor prefix mismatch rejected', sec.test_anchor_prefix_mismatch_with_valid_digest),\n        ('SEC-18', 'anchor checkpoint sequence range enforced', sec.test_anchor_sequence_out_of_range),\n        ('SEC-19', 'valid historical anchor prefixes accepted', sec.test_valid_anchor_prefix_history),
+        ('SEC-16', 'batch lock failure is fail-closed', sec.test_batch_lock_failure_closed),
+        ('SEC-17', 'historical anchor prefix mismatch rejected', sec.test_anchor_prefix_mismatch_with_valid_digest),
+        ('SEC-18', 'anchor checkpoint sequence range enforced', sec.test_anchor_sequence_out_of_range),
+        ('SEC-19', 'valid historical anchor prefixes accepted', sec.test_valid_anchor_prefix_history),
     ]
     out = []
     for ident, name, fn in cases:
