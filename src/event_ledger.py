@@ -113,6 +113,10 @@ class EventLedger:
             payload = {} if spec.get('payload') is None else spec.get('payload')
             if not isinstance(payload, dict):
                 raise TypeError(f'events[{index}].payload must be a JSON object')
+            try:
+                payload = json.loads(canonical_bytes(payload))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f'events[{index}].payload is not canonical JSON: {exc}') from exc
             parents = spec.get('parents', [])
             related = spec.get('related', [])
             if not isinstance(parents, list) or not all(isinstance(x, str) and x for x in parents):
@@ -177,6 +181,7 @@ class EventLedger:
                     next_seq = len(rows) + 1
                     records = []
                     chunks = []
+                    total_bytes = 0
                     for index, item in enumerate(normalized):
                         eid = item['event_id']
                         check = self.causal.validate(
@@ -200,7 +205,8 @@ class EventLedger:
                         chunk = canonical_bytes(record) + b'\\n'
                         chunks.append(chunk)
                         records.append(record)
-                        if len(b''.join(chunks)) > self.MAX_BATCH_BYTES:
+                        total_bytes += len(chunk)
+                        if total_bytes > self.MAX_BATCH_BYTES:
                             raise ValueError('batch exceeds maximum encoded size')
                         previous_hash = record['hash']
                         known_ids.add(eid)
