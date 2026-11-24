@@ -18,12 +18,12 @@ for number, raw in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 
     if not path.is_file():
         errors.append(f"{relative}: file missing")
         continue
-    data = path.read_bytes().replace(b"\\r\\n", b"\\n")
+    data = path.read_bytes().replace(b"\r\n", b"\n")
     actual = hashlib.sha256(data).hexdigest()
     checked += 1
     if actual != expected:
         errors.append(f"{relative}: expected {expected}, got {actual}")
 if errors:
-    print("\\n".join(errors))
+    print("\n".join(errors))
     raise SystemExit(1)
 print(f"Verified {checked} SHA-256 entries (canonical LF representation).")
