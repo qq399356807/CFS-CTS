@@ -1,4 +1,4 @@
-# CFS-CTS Core 0.1
+# CFS CTS Core 0.1
 
 Chronological Trust & Security core, Python 3.11+. Standard library only. This is a prototype audit component, **not a production tamper-proof logging system**.
 
@@ -53,6 +53,3 @@ python run_tests.py
 ```
 
 See [SECURITY_MODEL.md](SECURITY_MODEL.md) for threat assumptions and production release gates, and [CHANGELOG.md](CHANGELOG.md) for hardening history.
-
-
-This repository is the standalone home of CFS-CTS Core 0.1. FIR-3 is maintained separately in [CFS_CTS](https://github.com/qq399356807/CFS_CTS).
