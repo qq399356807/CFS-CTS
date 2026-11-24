@@ -92,7 +92,7 @@ def test_unicode_canonical():
 def test_duplicate_batch():
     fixture = Fixture()
     batch = [
-        {'event_id': 'batch-a', 'payload': {'action': 'created'}},
+        {'event_id': 'batch-a', 'payload': {'action': 'created', 'labels': ('x', 'y')}},
         {'event_id': 'batch-b', 'payload': {'action': 'linked'}, 'parents': ['batch-a']}
     ]
     first = fixture.ledger.append_many('request-001', batch)
