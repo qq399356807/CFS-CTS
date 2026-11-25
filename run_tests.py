@@ -43,6 +43,7 @@ def main():
         ('SEC-28', 'integrity checker rejects tampered batch metadata', sec.test_integrity_rejects_tampered_batch_metadata),
         ('SEC-29', 'anchor refuses corrupt ledger snapshots', sec.test_anchor_refuses_corrupt_ledger_snapshot),
         ('SEC-30', 'integrity checker bounds untrusted batch size', sec.test_integrity_bounds_untrusted_batch_size),
+        ('SEC-31', 'anchor rejects negative ledger sequence in existing history', sec.test_anchor_rejects_negative_existing_ledger_sequence),
         ('SEC-27', 'integrity checker rejects malformed anchor version type', sec.test_integrity_rejects_anchor_with_non_string_version),
     ]
     out = []
