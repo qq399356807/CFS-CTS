@@ -250,13 +250,29 @@ class EventLedger:
         return (len(rows), rows[-1]['hash'] if rows else GENESIS)
 
     def anchor(self, anchor):
-        seq, head = self.head()
-        prior = anchor.latest()
-        n = (prior['anchor_seq'] + 1) if prior else 1
-        from .audit_anchor import checkpoint_digest
-        cp = {'anchor_seq': n, 'ledger_version': self.VERSION, 'ledger_seq': seq, 'head': head}
-        cp['checkpoint_digest'] = checkpoint_digest(self.VERSION, seq, head)
-        return anchor.commit(cp)
+        # Keep the ledger snapshot stable until its checkpoint is committed.
+        # All ledger writers use the same advisory lock, so another process
+        # cannot append between reading/verifying the head and anchor.commit().
+        with self.lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with open(str(self.path) + '.lock', 'a+b') as lockfile:
+                _lock(lockfile)
+                try:
+                    rows = self._read()
+                    self._validate_existing(rows)
+                    seq = len(rows)
+                    head = rows[-1]['hash'] if rows else GENESIS
+                    prior = anchor.latest()
+                    n = (prior['anchor_seq'] + 1) if prior else 1
+                    from .audit_anchor import checkpoint_digest
+                    cp = {
+                        'anchor_seq': n, 'ledger_version': self.VERSION,
+                        'ledger_seq': seq, 'head': head
+                    }
+                    cp['checkpoint_digest'] = checkpoint_digest(self.VERSION, seq, head)
+                    return anchor.commit(cp)
+                finally:
+                    _unlock(lockfile)
 
 
 def _lock(f):
