@@ -451,3 +451,26 @@ def test_integrity_bounds_untrusted_batch_size():
     assert not result['ok']
     assert any(issue['type'] == 'INVALID_BATCH_GROUP' for issue in result['issues'])
     return {'untrusted_batch_size_bounded': True}
+
+
+def test_anchor_rejects_negative_existing_ledger_sequence():
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    head = '0' * 64
+    invalid = {
+        'anchor_seq': 1, 'ledger_version': 'CFS-CTS-LEDGER-1',
+        'ledger_seq': -1, 'head': head,
+        'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', -1, head)
+    }
+    fixture.anchor.path.write_text(json.dumps(invalid, sort_keys=True, separators=(',', ':')) + '\\n')
+    next_checkpoint = {
+        'anchor_seq': 2, 'ledger_version': 'CFS-CTS-LEDGER-1',
+        'ledger_seq': 0, 'head': head,
+        'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', 0, head)
+    }
+    try:
+        fixture.anchor.commit(next_checkpoint)
+    except ValueError as exc:
+        assert 'invalid existing ledger sequence' in str(exc)
+        return {'negative_existing_ledger_sequence_rejected': True}
+    raise AssertionError('anchor accepted negative ledger_seq in existing history')
