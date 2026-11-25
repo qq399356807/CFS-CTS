@@ -42,6 +42,13 @@ class EventLedger:
     def _digest(core):
         return hashlib.sha256(canonical_bytes(core)).hexdigest()
 
+    def _validate_existing(self, rows):
+        # Never extend a ledger whose existing history is already inconsistent.
+        from .integrity_checker import IntegrityChecker
+        result = IntegrityChecker().check(rows)
+        if not result['ok']:
+            raise RuntimeError(f"existing ledger failed integrity validation; append aborted: {result['issues']}")
+
     def append(self, event_id=None, payload=None, parents=None, related=None):
         with self.lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -49,6 +56,7 @@ class EventLedger:
                 _lock(lockfile)
                 try:
                     rows = self._read()
+                    self._validate_existing(rows)
                     ids = {r['event_id'] for r in rows}
                     seq = len(rows) + 1
                     eid = str(event_id or uuid.uuid4())
@@ -56,9 +64,18 @@ class EventLedger:
                         raise ValueError('event_id must not be empty')
                     if eid in ids:
                         raise ValueError('duplicate event_id')
+                    if parents is None:
+                        parents = []
+                    if related is None:
+                        related = []
+                    if not isinstance(parents, list) or not all(isinstance(x, str) and x for x in parents):
+                        raise TypeError('parents must be a list of non-empty strings')
+                    if not isinstance(related, list) or not all(isinstance(x, str) and x for x in related):
+                        raise TypeError('related must be a list of non-empty strings')
+                    if len(set(parents)) != len(parents) or len(set(related)) != len(related):
+                        raise ValueError('parents and related must not contain duplicates')
                     check = self.causal.validate(
-                        eid, parents or [], ids, seq,
-                        {r['event_id']: r['seq'] for r in rows}
+                        eid, parents, ids, seq,                        {r['event_id']: r['seq'] for r in rows}
                     )
                     if not check['ok']:
                         raise ValueError(check)
@@ -69,7 +86,7 @@ class EventLedger:
                     core = {
                         'version': self.VERSION, 'seq': seq, 'event_id': eid,
                         'timestamp': ts, 'payload': event_payload,
-                        'parents': list(parents or []), 'related': list(related or []),
+                        'parents': list(parents), 'related': list(related),
                         'prev_hash': rows[-1]['hash'] if rows else GENESIS
                     }
                     encoded = canonical_bytes(core)
@@ -144,6 +161,7 @@ class EventLedger:
                 _lock(lockfile)
                 try:
                     rows = self._read()
+                    self._validate_existing(rows)
                     prior_batch = [r for r in rows if r.get('batch_id') == batch_id]
                     if prior_batch:
                         expected_size = len(normalized)
