@@ -25,3 +25,13 @@
 - Add cross-platform CI for Python 3.11–3.13 on Linux, Windows, and macOS.
 - Remove empty .tmp artifacts from the test directory.
 - No production security claim is implied; external anchoring and batch idempotency were not implemented in this release.
+
+## 0.1.4 — verifier and anchor hardening
+
+- Require complete event schemas and strict integer sequence values; booleans no longer pass as sequence 1.
+- Fail closed for missing/empty/malformed anchor histories and validate checkpoint schemas.
+- Add cooperating-process advisory locking to local anchor history reads and writes.
+- Validate existing ledger history before any single or batch append; refuse to extend corrupted history.
+- Validate single-event parent and related references as explicit lists of non-empty strings.
+- Add regression cases for forged minimal events, malformed rows, empty anchors, corrupt-history append, malformed edges, and malformed checkpoints.
+- The local anchor remains simulated and same-host only; SHA-256 remains unkeyed and external anchoring is still not implemented.
