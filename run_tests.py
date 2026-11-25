@@ -38,6 +38,8 @@ def main():
         ('SEC-22', 'append refuses corrupt existing ledger history', sec.test_append_refuses_corrupt_existing_history),
         ('SEC-23', 'single append validates causal edge collections', sec.test_single_append_rejects_malformed_edges),
         ('SEC-24', 'anchor rejects malformed checkpoint records', sec.test_anchor_rejects_malformed_checkpoint),
+        ('SEC-25', 'batch append rejects duplicate related references', sec.test_batch_append_rejects_duplicate_related_references),
+        ('SEC-26', 'anchor append rejects corrupt existing history', sec.test_anchor_commit_refuses_corrupt_existing_history),
     ]
     out = []
     for ident, name, fn in cases:
