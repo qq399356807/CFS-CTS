@@ -142,6 +142,8 @@ class EventLedger:
                 raise TypeError(f'events[{index}].related must be a list of non-empty strings')
             if len(set(parents)) != len(parents):
                 raise ValueError(f'events[{index}].parents contains duplicates')
+            if len(set(related)) != len(related):
+                raise ValueError(f'events[{index}].related contains duplicates')
             normalized.append({
                 'event_id': eid, 'payload': payload,
                 'parents': list(parents), 'related': list(related)
