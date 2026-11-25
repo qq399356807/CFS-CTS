@@ -415,3 +415,21 @@ def test_integrity_rejects_tampered_batch_metadata():
     assert not any(issue['type'] == 'INVALID_BATCH_GROUP' for issue in result['issues'])
     assert any(issue['type'] == 'BATCH_DIGEST_MISMATCH' for issue in result['issues'])
     return {'batch_group_and_digest_tampering_rejected': True}
+
+
+
+def test_anchor_refuses_corrupt_ledger_snapshot():
+    fixture = Fixture()
+    fixture.add('before-anchor', {'value': 1})
+    rows = fixture.ledger.events()
+    rows[0]['payload']['value'] = 2
+    fixture.ledger.path.write_text(''.join(
+        json.dumps(row, ensure_ascii=False) + '\\n' for row in rows
+    ))
+    try:
+        fixture.ledger.anchor(fixture.anchor)
+    except RuntimeError as exc:
+        assert 'integrity validation' in str(exc)
+        assert fixture.anchor.history() == []
+        return {'anchor_commit_refused_corrupt_ledger': True}
+    raise AssertionError('anchor accepted a corrupt ledger snapshot')
