@@ -424,7 +424,7 @@ def test_anchor_refuses_corrupt_ledger_snapshot():
     rows = fixture.ledger.events()
     rows[0]['payload']['value'] = 2
     fixture.ledger.path.write_text(''.join(
-        json.dumps(row, ensure_ascii=False) + '\\n' for row in rows
+        json.dumps(row, ensure_ascii=False) + '\n' for row in rows
     ))
     try:
         fixture.ledger.anchor(fixture.anchor)
