@@ -118,7 +118,11 @@ class IntegrityChecker:
                 continue
             batch_fields = {"batch_id", "batch_index", "batch_size", "batch_digest"}
             if batch_fields.issubset(event):
-                batches.setdefault(event["batch_id"], []).append(event)
+                batch_id = event["batch_id"]
+                if not isinstance(batch_id, str):
+                    self._issue(issues, "INVALID_BATCH_METADATA", event.get("seq", 0))
+                    continue
+                batches.setdefault(batch_id, []).append(event)
         for batch_id, records in batches.items():
             first = records[0]
             size = first.get("batch_size")
