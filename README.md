@@ -59,7 +59,16 @@ This is retry idempotency, **not a filesystem transaction guarantee**. A process
 
 A same-privilege attacker can replace both ledger and local anchor, or truncate both. CORE-06 deliberately tests that condition; only a separately administered, authenticated remote anchor can detect it. The current local journal is not cryptographically signed. SHA-256 is unkeyed. External anchoring is not configured. Batch retries are idempotent, but incomplete writes require forensic review. Ledger and local-anchor locks coordinate cooperating processes only. Network filesystems, hostile writers that ignore the lock, power-loss durability, and platform-specific semantics require separate validation. Boot ID is session-generated. Wall time is advisory, monotonic clocks reset across reboot. Checksums do not ensure confidentiality or availability. Do not use as the sole source for safety-critical or legal audit decisions.
 
-## 0.1.4 hardening\n\n- Integrity verification now requires the complete event schema and rejects boolean/non-integer sequence values.\n- Missing, malformed, or empty anchor history fails closed when an anchor is supplied.\n- Anchor checkpoints are schema/digest checked and local anchor reads/writes use a cross-process advisory lock.\n- Appends refuse to extend an existing ledger that fails independent integrity validation.\n- Single-event append validates parent/related collections instead of silently splitting strings.\n- Regression tests cover forged minimal records, boolean sequence values, empty anchors, malformed records, corrupt-history append, and malformed checkpoints.\n\n## Layout
+## 0.1.4 hardening
+
+- Integrity verification now requires the complete event schema and rejects boolean/non-integer sequence values.
+- Missing, malformed, or empty anchor history fails closed when an anchor is supplied.
+- Anchor checkpoints are schema/digest checked and local anchor reads/writes use a cross-process advisory lock.
+- Appends refuse to extend an existing ledger that fails independent integrity validation.
+- Single-event append validates parent/related collections instead of silently splitting strings.
+- Regression tests cover forged minimal records, boolean sequence values, empty anchors, malformed records, corrupt-history append, and malformed checkpoints.
+
+## Layout
 
 `src/` implementation; `tests/` attack/regression cases; `reports/` generated actual run results. Test fixtures and the tested classes are distinct; integrity verification has a separately written canonicalization/hash path. This reduces common-mode risk but is not formal verification.
 
