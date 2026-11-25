@@ -1,4 +1,4 @@
-# CFS-CTS Core 0.1.3 — Security model
+# CFS-CTS Core 0.1.4 — Security model
 
 ## Scope
 
@@ -46,3 +46,14 @@ Passing the local test suite demonstrates only that the tested assertions held i
 ## Historical anchor-to-ledger continuity (0.1.3)
 
 When an anchor history is supplied to the verifier, every checkpoint is checked against the ledger prefix it claims to represent. The checkpoint's `ledger_seq` must be an integer (not a boolean) in the range zero through the supplied ledger length; its `head` must equal the hash at exactly that prefix (the genesis hash for sequence zero). The checkpoint digest and monotonic anchor/ledger sequence checks remain in force. This detects internally inconsistent local history, but does not make a locally stored anchor independently trustworthy: a same-privilege attacker can rewrite both files and recompute unkeyed digests.
+
+
+## 0.1.4 verifier and local-anchor hardening
+
+- The verifier requires the full event record schema, checks sequence values as integers excluding booleans, validates timestamp/payload/edge types, and rejects malformed records without allowing a successful result.
+- Supplying an anchor requires a non-empty, readable history. Each checkpoint is checked for required fields, sequence types/ranges, digest integrity, and ledger-prefix continuity.
+- Local anchor commit/read operations use a cooperating-process advisory lock in addition to an in-process lock. This reduces concurrent-writer races but does not protect against hostile writers that ignore locks or same-privilege replacement of the files.
+- Single and batch appends first run the independent verifier over existing history; a corrupt history is not extended.
+- Single-event parent and related references must be explicit lists of non-empty strings; strings are not accepted as iterable collections.
+
+These controls harden input validation and accidental/concurrent corruption detection. They do not turn the local anchor into an independent trust root, and do not defend against an attacker able to rewrite both files and recompute unkeyed SHA-256 values.
