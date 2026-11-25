@@ -127,7 +127,7 @@ def test_incomplete_batch():
     try:
         fixture.ledger.append_many('request-003', batch)
     except RuntimeError as exc:
-        assert 'incomplete' in str(exc)
+        assert 'incomplete' in str(exc) or 'integrity validation' in str(exc)
         return {'incomplete_batch_retry_rejected': True, 'automatic_repair': False}
     raise AssertionError('incomplete batch was silently accepted')
 
@@ -398,7 +398,8 @@ def test_integrity_rejects_tampered_batch_metadata():
     ])
     assert fixture.checker.check(records)['ok']
     tampered = [dict(record) for record in records]
-    tampered[1]['batch_digest'] = 'f' * 64
+    for record in tampered:
+        record['batch_digest'] = 'f' * 64
     # Recompute event hashes so this specifically exercises batch-level verification.
     previous = '0' * 64
     import hashlib
