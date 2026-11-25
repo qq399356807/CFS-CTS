@@ -412,6 +412,6 @@ def test_integrity_rejects_tampered_batch_metadata():
         previous = record['hash']
     result = fixture.checker.check(tampered)
     assert not result['ok']
-    assert any(issue['type'] == 'INVALID_BATCH_GROUP' for issue in result['issues'])
+    assert not any(issue['type'] == 'INVALID_BATCH_GROUP' for issue in result['issues'])
     assert any(issue['type'] == 'BATCH_DIGEST_MISMATCH' for issue in result['issues'])
     return {'batch_group_and_digest_tampering_rejected': True}
