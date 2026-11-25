@@ -65,7 +65,7 @@ class LocalSimulatedAnchor(AnchorProtocol):
             aseq, lseq = item["anchor_seq"], item["ledger_seq"]
             if isinstance(aseq, bool) or not isinstance(aseq, int) or aseq != index:
                 raise ValueError(f"invalid existing anchor sequence at {index}")
-            if isinstance(lseq, bool) or not isinstance(lseq, int) or lseq < previous_ledger_seq:
+            if isinstance(lseq, bool) or not isinstance(lseq, int) or lseq < 0 or lseq < previous_ledger_seq:
                 raise ValueError(f"invalid existing ledger sequence at {index}")
             if not isinstance(item["ledger_version"], str) or not item["ledger_version"]:
                 raise ValueError(f"invalid existing ledger version at {index}")
