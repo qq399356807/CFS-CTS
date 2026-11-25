@@ -433,3 +433,21 @@ def test_anchor_refuses_corrupt_ledger_snapshot():
         assert fixture.anchor.history() == []
         return {'anchor_commit_refused_corrupt_ledger': True}
     raise AssertionError('anchor accepted a corrupt ledger snapshot')
+
+
+def test_integrity_bounds_untrusted_batch_size():
+    import hashlib
+    fixture = Fixture()
+    records = fixture.ledger.append_many('oversized-metadata', [
+        {'event_id': 'oversized-metadata-event', 'payload': {'ok': True}}
+    ])
+    tampered = [dict(records[0])]
+    tampered[0]['batch_size'] = 10 ** 100
+    core = {key: value for key, value in tampered[0].items() if key != 'hash'}
+    tampered[0]['hash'] = hashlib.sha256(json.dumps(
+        core, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False
+    ).encode('utf-8')).hexdigest()
+    result = fixture.checker.check(tampered)
+    assert not result['ok']
+    assert any(issue['type'] == 'INVALID_BATCH_GROUP' for issue in result['issues'])
+    return {'untrusted_batch_size_bounded': True}
