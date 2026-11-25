@@ -130,6 +130,9 @@ class IntegrityChecker:
                         if not required.issubset(cp):
                             self._issue(issues, "INVALID_ANCHOR_CHECKPOINT", i)
                             continue
+                        if (not isinstance(cp.get("ledger_version"), str) or not cp.get("ledger_version")
+                                or not isinstance(cp.get("head"), str) or not _HEX.fullmatch(cp.get("head"))):
+                            self._issue(issues, "INVALID_ANCHOR_CHECKPOINT", i)
                         anchor_seq = cp.get("anchor_seq")
                         ledger_seq = cp.get("ledger_seq")
                         if isinstance(anchor_seq, bool) or not isinstance(anchor_seq, int) or anchor_seq != i:
