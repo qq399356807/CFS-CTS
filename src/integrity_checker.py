@@ -111,6 +111,45 @@ class IntegrityChecker:
                         or not isinstance(event["batch_digest"], str) or not _HEX.fullmatch(event["batch_digest"])):
                     self._issue(issues, "INVALID_BATCH_METADATA", idx)
 
+        # Validate batch metadata as a ledger-wide structure, not only per-record fields.
+        batches = {}
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            batch_fields = {"batch_id", "batch_index", "batch_size", "batch_digest"}
+            if batch_fields.issubset(event):
+                batches.setdefault(event["batch_id"], []).append(event)
+        for batch_id, records in batches.items():
+            first = records[0]
+            size = first.get("batch_size")
+            digest = first.get("batch_digest")
+            indexes = [record.get("batch_index") for record in records]
+            sequences = [record.get("seq") for record in records]
+            if (not isinstance(batch_id, str) or not batch_id or batch_id != batch_id.strip()
+                    or isinstance(size, bool) or not isinstance(size, int) or size < 1
+                    or len(records) != size or indexes != list(range(size))
+                    or any(record.get("batch_size") != size or record.get("batch_digest") != digest
+                           for record in records)
+                    or any(isinstance(seq, bool) or not isinstance(seq, int) for seq in sequences)
+                    or sequences != list(range(sequences[0], sequences[0] + size))):
+                self._issue(issues, "INVALID_BATCH_GROUP", records[0].get("seq", 0), batch_id=repr(batch_id))
+                continue
+            normalized = [{
+                "event_id": record.get("event_id"),
+                "payload": record.get("payload"),
+                "parents": record.get("parents"),
+                "related": record.get("related"),
+            } for record in records]
+            try:
+                actual_digest = hashlib.sha256(json.dumps(
+                    normalized, sort_keys=True, ensure_ascii=False,
+                    separators=(",", ":"), allow_nan=False
+                ).encode("utf-8")).hexdigest()
+            except (TypeError, ValueError, OverflowError):
+                actual_digest = None
+            if actual_digest != digest:
+                self._issue(issues, "BATCH_DIGEST_MISMATCH", records[0].get("seq", 0), batch_id=repr(batch_id))
+
         if anchor is not None:
             try:
                 history = anchor.history()
@@ -131,6 +170,7 @@ class IntegrityChecker:
                             self._issue(issues, "INVALID_ANCHOR_CHECKPOINT", i)
                             continue
                         if (not isinstance(cp.get("ledger_version"), str) or not cp.get("ledger_version")
+                                or cp.get("ledger_version") != "CFS-CTS-LEDGER-1"
                                 or not isinstance(cp.get("head"), str) or not _HEX.fullmatch(cp.get("head"))):
                             self._issue(issues, "INVALID_ANCHOR_CHECKPOINT", i)
                         anchor_seq = cp.get("anchor_seq")
