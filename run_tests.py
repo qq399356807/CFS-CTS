@@ -40,6 +40,7 @@ def main():
         ('SEC-24', 'anchor rejects malformed checkpoint records', sec.test_anchor_rejects_malformed_checkpoint),
         ('SEC-25', 'batch append rejects duplicate related references', sec.test_batch_append_rejects_duplicate_related_references),
         ('SEC-26', 'anchor append rejects corrupt existing history', sec.test_anchor_commit_refuses_corrupt_existing_history),
+        ('SEC-27', 'integrity checker rejects malformed anchor version type', sec.test_integrity_rejects_anchor_with_non_string_version),
     ]
     out = []
     for ident, name, fn in cases:
