@@ -7,6 +7,7 @@
 - Add cooperating-process advisory locking to local anchor history reads and writes.
 - Validate existing ledger history before any single or batch append; refuse to extend corrupted history.
 - Validate single-event parent and related references as explicit lists of non-empty strings.
+- Capture anchor checkpoints from a validated ledger snapshot while holding the ledger's cooperating-process lock.
 - Add regression cases for forged minimal events, malformed rows, empty anchors, corrupt-history append, malformed edges, and malformed checkpoints.
 - The local anchor remains simulated and same-host only; SHA-256 remains unkeyed and external anchoring is still not implemented.
 
