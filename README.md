@@ -65,6 +65,7 @@ A same-privilege attacker can replace both ledger and local anchor, or truncate 
 - Missing, malformed, or empty anchor history fails closed when an anchor is supplied.
 - Anchor checkpoints are schema/digest checked and local anchor reads/writes use a cross-process advisory lock.
 - Appends refuse to extend an existing ledger that fails independent integrity validation.
+- Anchor snapshots are captured under the ledger's cooperating-process lock and refuse corrupt ledger history.
 - Single-event append validates parent/related collections instead of silently splitting strings.
 - Regression tests cover forged minimal records, boolean sequence values, empty anchors, malformed records, corrupt-history append, and malformed checkpoints.
 
