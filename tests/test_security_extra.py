@@ -462,7 +462,7 @@ def test_anchor_rejects_negative_existing_ledger_sequence():
         'ledger_seq': -1, 'head': head,
         'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', -1, head)
     }
-    fixture.anchor.path.write_text(json.dumps(invalid, sort_keys=True, separators=(',', ':')) + '\\n')
+    fixture.anchor.path.write_text(json.dumps(invalid, sort_keys=True, separators=(',', ':')) + '\n')
     next_checkpoint = {
         'anchor_seq': 2, 'ledger_version': 'CFS-CTS-LEDGER-1',
         'ledger_seq': 0, 'head': head,
