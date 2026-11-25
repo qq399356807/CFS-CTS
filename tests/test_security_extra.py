@@ -387,3 +387,30 @@ def test_integrity_rejects_anchor_with_non_string_version():
     assert not result['ok']
     assert any(issue['type'] == 'INVALID_ANCHOR_CHECKPOINT' for issue in result['issues'])
     return {'non_string_anchor_version_rejected': True}
+
+
+
+def test_integrity_rejects_tampered_batch_metadata():
+    fixture = Fixture()
+    records = fixture.ledger.append_many('batch-audit', [
+        {'event_id': 'batch-audit-1', 'payload': {'v': 1}},
+        {'event_id': 'batch-audit-2', 'payload': {'v': 2}},
+    ])
+    assert fixture.checker.check(records)['ok']
+    tampered = [dict(record) for record in records]
+    tampered[1]['batch_digest'] = 'f' * 64
+    # Recompute event hashes so this specifically exercises batch-level verification.
+    previous = '0' * 64
+    import hashlib
+    for record in tampered:
+        record['prev_hash'] = previous
+        core = {key: value for key, value in record.items() if key != 'hash'}
+        record['hash'] = hashlib.sha256(json.dumps(
+            core, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False
+        ).encode('utf-8')).hexdigest()
+        previous = record['hash']
+    result = fixture.checker.check(tampered)
+    assert not result['ok']
+    assert any(issue['type'] == 'INVALID_BATCH_GROUP' for issue in result['issues'])
+    assert any(issue['type'] == 'BATCH_DIGEST_MISMATCH' for issue in result['issues'])
+    return {'batch_group_and_digest_tampering_rejected': True}
