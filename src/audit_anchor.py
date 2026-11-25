@@ -54,7 +54,30 @@ class LocalSimulatedAnchor(AnchorProtocol):
             rows.append(item)
         return rows
 
+    def _validate_history(self, history):
+        if not isinstance(history, list):
+            raise ValueError("anchor history must be a list")
+        previous_ledger_seq = -1
+        required = {"anchor_seq", "ledger_version", "ledger_seq", "head", "checkpoint_digest"}
+        for index, item in enumerate(history, 1):
+            if not isinstance(item, dict) or not required.issubset(item):
+                raise ValueError(f"invalid existing checkpoint at sequence {index}")
+            aseq, lseq = item["anchor_seq"], item["ledger_seq"]
+            if isinstance(aseq, bool) or not isinstance(aseq, int) or aseq != index:
+                raise ValueError(f"invalid existing anchor sequence at {index}")
+            if isinstance(lseq, bool) or not isinstance(lseq, int) or lseq < previous_ledger_seq:
+                raise ValueError(f"invalid existing ledger sequence at {index}")
+            if not isinstance(item["ledger_version"], str) or not item["ledger_version"]:
+                raise ValueError(f"invalid existing ledger version at {index}")
+            if not isinstance(item["head"], str) or not _HEX.fullmatch(item["head"]):
+                raise ValueError(f"invalid existing checkpoint head at {index}")
+            expected = checkpoint_digest(item["ledger_version"], lseq, item["head"])
+            if item["checkpoint_digest"] != expected:
+                raise ValueError(f"existing checkpoint digest mismatch at {index}")
+            previous_ledger_seq = lseq
+
     def _validate_checkpoint(self, checkpoint, history):
+        self._validate_history(history)
         if not isinstance(checkpoint, dict):
             raise TypeError("checkpoint must be an object")
         required = {"anchor_seq", "ledger_version", "ledger_seq", "head", "checkpoint_digest"}
