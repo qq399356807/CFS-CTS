@@ -54,6 +54,7 @@ When an anchor history is supplied to the verifier, every checkpoint is checked 
 - Supplying an anchor requires a non-empty, readable history. Each checkpoint is checked for required fields, sequence types/ranges, digest integrity, and ledger-prefix continuity.
 - Local anchor commit/read operations use a cooperating-process advisory lock in addition to an in-process lock. This reduces concurrent-writer races but does not protect against hostile writers that ignore locks or same-privilege replacement of the files.
 - Single and batch appends first run the independent verifier over existing history; a corrupt history is not extended.
+- Anchor creation validates the ledger and holds the ledger advisory lock through checkpoint commit, preventing an intervening cooperating append from making the snapshot stale.
 - Single-event parent and related references must be explicit lists of non-empty strings; strings are not accepted as iterable collections.
 
 These controls harden input validation and accidental/concurrent corruption detection. They do not turn the local anchor into an independent trust root, and do not defend against an attacker able to rewrite both files and recompute unkeyed SHA-256 values.
