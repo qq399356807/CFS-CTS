@@ -303,7 +303,7 @@ def test_append_refuses_corrupt_existing_history():
     fixture.add('before-tamper', {'value': 1})
     rows = fixture.ledger.events()
     rows[0]['payload']['value'] = 2
-    fixture.ledger.path.write_text(''.join(json.dumps(row, ensure_ascii=False) + '\\n' for row in rows))
+    fixture.ledger.path.write_text(''.join(json.dumps(row, ensure_ascii=False) + '\n' for row in rows))
     try:
         fixture.add('must-not-append')
     except RuntimeError as exc:
