@@ -1,4 +1,4 @@
-# CFS-CTS Core 0.1.3
+# CFS-CTS Core 0.1.4
 
 Chronological Trust & Security core, Python 3.11+. Standard library only. This is a prototype audit component, **not a production tamper-proof logging system**.
 
@@ -51,15 +51,15 @@ This is retry idempotency, **not a filesystem transaction guarantee**. A process
 - `TimeBase`: UTC and monotonic samples, process logical counter, boot/session ID, rollback and UTC jump flags. Default boot ID is a random process-session identifier, not an OS-certified boot UUID.
 - `EventLedger`: canonical UTF-8 JSONL, sequence, unique IDs, SHA-256 chain, parent validation, bounded event size, fsync and best-effort cooperating-process lock; includes retry-idempotent batch append.
 - `CausalTracker`: explicit parent/related edges; timestamp proximity creates no causal edge.
-- `IntegrityChecker`: independent canonical JSON/hash implementation checks sequence, IDs, chain, parent references and anchor.
-- `LocalSimulatedAnchor`: append-only-on-cooperating-writes local journal with sequence/checkpoint. It is **not** an external trust root.
+- `IntegrityChecker`: strict event-schema validation, exact integer sequence checks (booleans rejected), independent canonical JSON/hash verification, causal-reference checks, and fail-closed anchor validation.
+- `LocalSimulatedAnchor`: local journal with checkpoint schema validation and cooperating-process advisory locks. It is **not** an external trust root.
 - `AnchorProtocol`: extension interface for remote independently administered service; no remote implementation/credentials are included.
 
 ## Security boundaries and known risks
 
-A same-privilege attacker can replace both ledger and local anchor, or truncate both. CORE-06 deliberately tests that condition; only a separately administered, authenticated remote anchor can detect it. The current local journal is not cryptographically signed. SHA-256 is unkeyed. External anchoring is not configured. Batch retries are idempotent, but incomplete writes require forensic review. File locking coordinates cooperating processes only. Network filesystems, hostile writers that ignore the lock, power-loss durability, and platform-specific semantics require separate validation. Boot ID is session-generated. Wall time is advisory, monotonic clocks reset across reboot. Checksums do not ensure confidentiality or availability. Do not use as the sole source for safety-critical or legal audit decisions.
+A same-privilege attacker can replace both ledger and local anchor, or truncate both. CORE-06 deliberately tests that condition; only a separately administered, authenticated remote anchor can detect it. The current local journal is not cryptographically signed. SHA-256 is unkeyed. External anchoring is not configured. Batch retries are idempotent, but incomplete writes require forensic review. Ledger and local-anchor locks coordinate cooperating processes only. Network filesystems, hostile writers that ignore the lock, power-loss durability, and platform-specific semantics require separate validation. Boot ID is session-generated. Wall time is advisory, monotonic clocks reset across reboot. Checksums do not ensure confidentiality or availability. Do not use as the sole source for safety-critical or legal audit decisions.
 
-## Layout
+## 0.1.4 hardening\n\n- Integrity verification now requires the complete event schema and rejects boolean/non-integer sequence values.\n- Missing, malformed, or empty anchor history fails closed when an anchor is supplied.\n- Anchor checkpoints are schema/digest checked and local anchor reads/writes use a cross-process advisory lock.\n- Appends refuse to extend an existing ledger that fails independent integrity validation.\n- Single-event append validates parent/related collections instead of silently splitting strings.\n- Regression tests cover forged minimal records, boolean sequence values, empty anchors, malformed records, corrupt-history append, and malformed checkpoints.\n\n## Layout
 
 `src/` implementation; `tests/` attack/regression cases; `reports/` generated actual run results. Test fixtures and the tested classes are distinct; integrity verification has a separately written canonicalization/hash path. This reduces common-mode risk but is not formal verification.
 
