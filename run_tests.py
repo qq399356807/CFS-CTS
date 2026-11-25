@@ -33,6 +33,11 @@ def main():
         ('SEC-17', 'historical anchor prefix mismatch rejected', sec.test_anchor_prefix_mismatch_with_valid_digest),
         ('SEC-18', 'anchor checkpoint sequence range enforced', sec.test_anchor_sequence_out_of_range),
         ('SEC-19', 'valid historical anchor prefixes accepted', sec.test_valid_anchor_prefix_history),
+        ('SEC-20', 'boolean sequence and incomplete event schema rejected', sec.test_integrity_rejects_boolean_sequence_and_missing_schema),
+        ('SEC-21', 'empty anchor and malformed rows fail closed', sec.test_integrity_rejects_empty_anchor_and_malformed_rows),
+        ('SEC-22', 'append refuses corrupt existing ledger history', sec.test_append_refuses_corrupt_existing_history),
+        ('SEC-23', 'single append validates causal edge collections', sec.test_single_append_rejects_malformed_edges),
+        ('SEC-24', 'anchor rejects malformed checkpoint records', sec.test_anchor_rejects_malformed_checkpoint),
     ]
     out = []
     for ident, name, fn in cases:
@@ -56,7 +61,7 @@ def main():
                 [traceback.format_exc()]
             ).as_dict())
     report = {
-        'project': 'CFS CTS Core', 'version': '0.1.3',
+        'project': 'CFS CTS Core', 'version': '0.1.4',
         'python': sys.version, 'platform': platform.platform(),
         'generated_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
         'external_anchor_configured': False,
