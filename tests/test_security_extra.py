@@ -257,3 +257,79 @@ def test_valid_anchor_prefix_history():
     result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
     assert result['ok'], result['issues']
     return {'valid_historical_prefixes_accepted': True, 'checkpoints': len(fixture.anchor.history())}
+
+
+def test_integrity_rejects_boolean_sequence_and_missing_schema():
+    import hashlib
+    fixture = Fixture()
+    valid = fixture.add('strict-schema')
+    bad_seq = dict(valid)
+    bad_seq['seq'] = True
+    core = {key: value for key, value in bad_seq.items() if key != 'hash'}
+    bad_seq['hash'] = hashlib.sha256(json.dumps(
+        core, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False
+    ).encode('utf-8')).hexdigest()
+    result = fixture.checker.check([bad_seq])
+    assert not result['ok']
+    assert any(issue['type'] == 'SEQUENCE' for issue in result['issues'])
+
+    minimal = {
+        'seq': True, 'event_id': 'forged-minimal',
+        'prev_hash': '0' * 64, 'parents': []
+    }
+    minimal['hash'] = hashlib.sha256(json.dumps(
+        minimal, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False
+    ).encode('utf-8')).hexdigest()
+    result = fixture.checker.check([minimal])
+    assert not result['ok']
+    assert any(issue['type'] == 'MISSING_EVENT_FIELDS' for issue in result['issues'])
+    return {'boolean_seq_rejected': True, 'minimal_hash_valid_record_rejected': True}
+
+
+def test_integrity_rejects_empty_anchor_and_malformed_rows():
+    fixture = Fixture()
+    fixture.add('anchor-required')
+    result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
+    assert not result['ok']
+    assert any(issue['type'] == 'ANCHOR_MISSING_OR_EMPTY' for issue in result['issues'])
+    malformed = fixture.checker.check([None])
+    assert not malformed['ok']
+    assert any(issue['type'] == 'INVALID_EVENT_TYPE' for issue in malformed['issues'])
+    return {'empty_anchor_fails_closed': True, 'malformed_event_reported_not_raised': True}
+
+
+def test_append_refuses_corrupt_existing_history():
+    fixture = Fixture()
+    fixture.add('before-tamper', {'value': 1})
+    rows = fixture.ledger.events()
+    rows[0]['payload']['value'] = 2
+    fixture.ledger.path.write_text(''.join(json.dumps(row, ensure_ascii=False) + '\\n' for row in rows))
+    try:
+        fixture.add('must-not-append')
+    except RuntimeError as exc:
+        assert 'integrity validation' in str(exc)
+        assert len(fixture.ledger.events()) == 1
+        return {'append_aborted_on_corrupt_history': True}
+    raise AssertionError('append extended a corrupt ledger')
+
+
+def test_single_append_rejects_malformed_edges():
+    fixture = Fixture()
+    for field, value in (('parents', 'parent-string'), ('related', ['ok', 7])):
+        try:
+            fixture.ledger.append('bad-' + field, {}, **{field: value})
+        except TypeError:
+            pass
+        else:
+            raise AssertionError(f'malformed {field} accepted')
+    assert fixture.ledger.events() == []
+    return {'malformed_parent_and_related_collections_rejected': True}
+
+
+def test_anchor_rejects_malformed_checkpoint():
+    fixture = Fixture()
+    try:
+        fixture.anchor.commit({'anchor_seq': True})
+    except ValueError:
+        return {'malformed_checkpoint_rejected': True}
+    raise AssertionError('malformed checkpoint accepted')
