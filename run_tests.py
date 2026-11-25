@@ -41,6 +41,7 @@ def main():
         ('SEC-25', 'batch append rejects duplicate related references', sec.test_batch_append_rejects_duplicate_related_references),
         ('SEC-26', 'anchor append rejects corrupt existing history', sec.test_anchor_commit_refuses_corrupt_existing_history),
         ('SEC-28', 'integrity checker rejects tampered batch metadata', sec.test_integrity_rejects_tampered_batch_metadata),
+        ('SEC-29', 'anchor refuses corrupt ledger snapshots', sec.test_anchor_refuses_corrupt_ledger_snapshot),
         ('SEC-27', 'integrity checker rejects malformed anchor version type', sec.test_integrity_rejects_anchor_with_non_string_version),
     ]
     out = []
