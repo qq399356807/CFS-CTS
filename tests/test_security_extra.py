@@ -333,3 +333,41 @@ def test_anchor_rejects_malformed_checkpoint():
     except ValueError:
         return {'malformed_checkpoint_rejected': True}
     raise AssertionError('malformed checkpoint accepted')
+
+
+
+def test_batch_append_rejects_duplicate_related_references():
+    fixture = Fixture()
+    try:
+        fixture.ledger.append_many('duplicate-related', [
+            {'event_id': 'batch-duplicate-related', 'payload': {}, 'related': ['ref-1', 'ref-1']}
+        ])
+    except ValueError as exc:
+        assert 'related contains duplicates' in str(exc)
+        assert fixture.ledger.events() == []
+        return {'duplicate_related_references_rejected': True}
+    raise AssertionError('batch append accepted duplicate related references')
+
+
+def test_anchor_commit_refuses_corrupt_existing_history():
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    head = '0' * 64
+    fixture.anchor.commit({
+        'anchor_seq': 1, 'ledger_version': 'CFS-CTS-LEDGER-1',
+        'ledger_seq': 0, 'head': head,
+        'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', 0, head)
+    })
+    corrupted = json.loads(fixture.anchor.path.read_text().splitlines()[0])
+    corrupted['checkpoint_digest'] = 'f' * 64
+    fixture.anchor.path.write_text(json.dumps(corrupted, sort_keys=True, separators=(',', ':')) + '\n')
+    try:
+        fixture.anchor.commit({
+            'anchor_seq': 2, 'ledger_version': 'CFS-CTS-LEDGER-1',
+            'ledger_seq': 0, 'head': head,
+            'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', 0, head)
+        })
+    except ValueError as exc:
+        assert 'digest mismatch' in str(exc)
+        return {'corrupt_anchor_history_rejected_on_append': True}
+    raise AssertionError('anchor appended after corrupt checkpoint history')
