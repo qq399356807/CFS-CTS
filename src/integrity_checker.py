@@ -10,6 +10,7 @@ _EVENT_REQUIRED = {
     "parents", "related", "prev_hash", "hash",
 }
 _TS_REQUIRED = {"utc", "utc_epoch", "monotonic", "logical", "boot_id", "anomalies"}
+_MAX_BATCH_EVENTS = 1_000
 
 
 class IntegrityChecker:
@@ -130,7 +131,8 @@ class IntegrityChecker:
             indexes = [record.get("batch_index") for record in records]
             sequences = [record.get("seq") for record in records]
             if (not isinstance(batch_id, str) or not batch_id or batch_id != batch_id.strip()
-                    or isinstance(size, bool) or not isinstance(size, int) or size < 1
+                    or isinstance(size, bool) or not isinstance(size, int)
+                    or size < 1 or size > _MAX_BATCH_EVENTS
                     or len(records) != size or indexes != list(range(size))
                     or any(record.get("batch_size") != size or record.get("batch_digest") != digest
                            for record in records)
