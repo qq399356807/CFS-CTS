@@ -371,3 +371,19 @@ def test_anchor_commit_refuses_corrupt_existing_history():
         assert 'digest mismatch' in str(exc)
         return {'corrupt_anchor_history_rejected_on_append': True}
     raise AssertionError('anchor appended after corrupt checkpoint history')
+
+
+
+def test_integrity_rejects_anchor_with_non_string_version():
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    fixture.add('anchor-version-schema')
+    fixture.ledger.anchor(fixture.anchor)
+    checkpoint = json.loads(fixture.anchor.path.read_text().splitlines()[0])
+    checkpoint['ledger_version'] = None
+    checkpoint['checkpoint_digest'] = checkpoint_digest(None, checkpoint['ledger_seq'], checkpoint['head'])
+    fixture.anchor.path.write_text(json.dumps(checkpoint, sort_keys=True, separators=(',', ':')) + '\n')
+    result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
+    assert not result['ok']
+    assert any(issue['type'] == 'INVALID_ANCHOR_CHECKPOINT' for issue in result['issues'])
+    return {'non_string_anchor_version_rejected': True}
