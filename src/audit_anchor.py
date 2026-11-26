@@ -67,7 +67,7 @@ class LocalSimulatedAnchor(AnchorProtocol):
                 raise ValueError(f"invalid existing anchor sequence at {index}")
             if isinstance(lseq, bool) or not isinstance(lseq, int) or lseq < 0 or lseq < previous_ledger_seq:
                 raise ValueError(f"invalid existing ledger sequence at {index}")
-            if not isinstance(item["ledger_version"], str) or not item["ledger_version"]:
+            if item["ledger_version"] != "CFS-CTS-LEDGER-1":
                 raise ValueError(f"invalid existing ledger version at {index}")
             if not isinstance(item["head"], str) or not _HEX.fullmatch(item["head"]):
                 raise ValueError(f"invalid existing checkpoint head at {index}")
@@ -88,8 +88,8 @@ class LocalSimulatedAnchor(AnchorProtocol):
             raise ValueError("anchor_seq must be a positive integer")
         if isinstance(lseq, bool) or not isinstance(lseq, int) or lseq < 0:
             raise ValueError("ledger_seq must be a non-negative integer")
-        if not isinstance(checkpoint["ledger_version"], str) or not checkpoint["ledger_version"]:
-            raise ValueError("ledger_version must be a non-empty string")
+        if checkpoint["ledger_version"] != "CFS-CTS-LEDGER-1":
+            raise ValueError("unsupported ledger_version")
         if not isinstance(checkpoint["head"], str) or not _HEX.fullmatch(checkpoint["head"]):
             raise ValueError("head must be a lowercase SHA-256 hex digest")
         expected_digest = checkpoint_digest(checkpoint["ledger_version"], lseq, checkpoint["head"])
