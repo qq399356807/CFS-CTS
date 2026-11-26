@@ -2,10 +2,60 @@
 from __future__ import annotations
 import hashlib, json, os, threading, uuid
 from pathlib import Path
+import stat
 from .audit_anchor import canonical_bytes
 from .causal_tracker import CausalTracker
 
 GENESIS = '0' * 64
+
+
+def _open_nofollow(path, flags, mode=0o600):
+    """Open a regular file without following a final-component symlink."""
+    nofollow = getattr(os, 'O_NOFOLLOW', 0)
+    if not nofollow:
+        try:
+            if stat.S_ISLNK(os.lstat(path).st_mode):
+                raise OSError(f'refusing symlink file: {path}')
+        except FileNotFoundError:
+            pass
+    # O_NONBLOCK prevents a hostile FIFO from hanging a read before fstat().
+    flags |= (nofollow | getattr(os, 'O_CLOEXEC', 0)
+              | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NONBLOCK', 0))
+    fd = os.open(str(path), flags, mode)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise OSError(f'refusing non-regular file: {path}')
+        return fd
+    except Exception:
+        os.close(fd)
+        raise
+
+
+def _write_all(fd, data):
+    """Write every byte or fail; os.write is permitted to return short counts."""
+    view = memoryview(data)
+    offset = 0
+    while offset < len(view):
+        try:
+            written = os.write(fd, view[offset:])
+        except InterruptedError:
+            continue
+        if written is None or written <= 0:
+            raise OSError("storage write made no forward progress")
+        offset += written
+
+
+def _unique_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f'duplicate JSON object key: {key!r}')
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value):
+    raise ValueError(f'non-standard JSON constant: {value}')
 
 
 class EventLedger:
@@ -22,15 +72,18 @@ class EventLedger:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def _read(self):
-        if not self.path.exists():
+        try:
+            fd = _open_nofollow(self.path, os.O_RDONLY)
+        except FileNotFoundError:
             return []
-        raw = self.path.read_bytes()
+        with os.fdopen(fd, 'rb') as stream:
+            raw = stream.read()
         if raw and not raw.endswith(b'\n'):
             raise ValueError('truncated JSONL tail')
         rows = []
         for i, line in enumerate(raw.splitlines(), 1):
             try:
-                row = json.loads(line)
+                row = json.loads(line, object_pairs_hook=_unique_json_object, parse_constant=_reject_json_constant)
                 if not isinstance(row, dict):
                     raise ValueError('record must be a JSON object')
                 rows.append(row)
@@ -42,13 +95,22 @@ class EventLedger:
     def _digest(core):
         return hashlib.sha256(canonical_bytes(core)).hexdigest()
 
+    def _validate_existing(self, rows):
+        # Never extend a ledger whose existing history is already inconsistent.
+        from .integrity_checker import IntegrityChecker
+        result = IntegrityChecker().check(rows)
+        if not result['ok']:
+            raise RuntimeError(f"existing ledger failed integrity validation; append aborted: {result['issues']}")
+
     def append(self, event_id=None, payload=None, parents=None, related=None):
         with self.lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            with open(str(self.path) + '.lock', 'a+b') as lockfile:
+            lock_fd = _open_nofollow(str(self.path) + '.lock', os.O_RDWR | os.O_CREAT)
+            with os.fdopen(lock_fd, 'r+b') as lockfile:
                 _lock(lockfile)
                 try:
                     rows = self._read()
+                    self._validate_existing(rows)
                     ids = {r['event_id'] for r in rows}
                     seq = len(rows) + 1
                     eid = str(event_id or uuid.uuid4())
@@ -56,9 +118,18 @@ class EventLedger:
                         raise ValueError('event_id must not be empty')
                     if eid in ids:
                         raise ValueError('duplicate event_id')
+                    if parents is None:
+                        parents = []
+                    if related is None:
+                        related = []
+                    if not isinstance(parents, list) or not all(isinstance(x, str) and x for x in parents):
+                        raise TypeError('parents must be a list of non-empty strings')
+                    if not isinstance(related, list) or not all(isinstance(x, str) and x for x in related):
+                        raise TypeError('related must be a list of non-empty strings')
+                    if len(set(parents)) != len(parents) or len(set(related)) != len(related):
+                        raise ValueError('parents and related must not contain duplicates')
                     check = self.causal.validate(
-                        eid, parents or [], ids, seq,
-                        {r['event_id']: r['seq'] for r in rows}
+                        eid, parents, ids, seq,                        {r['event_id']: r['seq'] for r in rows}
                     )
                     if not check['ok']:
                         raise ValueError(check)
@@ -66,10 +137,20 @@ class EventLedger:
                     event_payload = {} if payload is None else payload
                     if not isinstance(event_payload, dict):
                         raise TypeError('payload must be a JSON object')
+                    try:
+                        # Normalize exactly what will be persisted; callers must not
+                        # receive a subtly different in-memory record than a later read.
+                        event_payload = json.loads(
+                            canonical_bytes(event_payload),
+                            object_pairs_hook=_unique_json_object,
+                            parse_constant=_reject_json_constant
+                        )
+                    except (TypeError, ValueError, OverflowError) as exc:
+                        raise ValueError(f'payload is not canonical JSON: {exc}') from exc
                     core = {
                         'version': self.VERSION, 'seq': seq, 'event_id': eid,
                         'timestamp': ts, 'payload': event_payload,
-                        'parents': list(parents or []), 'related': list(related or []),
+                        'parents': list(parents), 'related': list(related),
                         'prev_hash': rows[-1]['hash'] if rows else GENESIS
                     }
                     encoded = canonical_bytes(core)
@@ -77,10 +158,12 @@ class EventLedger:
                         raise ValueError('event exceeds maximum encoded size')
                     record = {**core, 'hash': self._digest(core)}
                     data = canonical_bytes(record) + b'\n'
-                    with self.path.open('ab') as f:
-                        f.write(data)
-                        f.flush()
-                        os.fsync(f.fileno())
+                    data_fd = _open_nofollow(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT)
+                    try:
+                        _write_all(data_fd, data)
+                        os.fsync(data_fd)
+                    finally:
+                        os.close(data_fd)
                     return record
                 finally:
                     _unlock(lockfile)
@@ -125,6 +208,8 @@ class EventLedger:
                 raise TypeError(f'events[{index}].related must be a list of non-empty strings')
             if len(set(parents)) != len(parents):
                 raise ValueError(f'events[{index}].parents contains duplicates')
+            if len(set(related)) != len(related):
+                raise ValueError(f'events[{index}].related contains duplicates')
             normalized.append({
                 'event_id': eid, 'payload': payload,
                 'parents': list(parents), 'related': list(related)
@@ -140,10 +225,12 @@ class EventLedger:
 
         with self.lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            with open(str(self.path) + '.lock', 'a+b') as lockfile:
+            lock_fd = _open_nofollow(str(self.path) + '.lock', os.O_RDWR | os.O_CREAT)
+            with os.fdopen(lock_fd, 'r+b') as lockfile:
                 _lock(lockfile)
                 try:
                     rows = self._read()
+                    self._validate_existing(rows)
                     prior_batch = [r for r in rows if r.get('batch_id') == batch_id]
                     if prior_batch:
                         expected_size = len(normalized)
@@ -213,10 +300,12 @@ class EventLedger:
                         parent_seq[eid] = next_seq + index
 
                     data = b''.join(chunks)
-                    with self.path.open('ab') as f:
-                        f.write(data)
-                        f.flush()
-                        os.fsync(f.fileno())
+                    data_fd = _open_nofollow(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT)
+                    try:
+                        _write_all(data_fd, data)
+                        os.fsync(data_fd)
+                    finally:
+                        os.close(data_fd)
                     return records
                 finally:
                     _unlock(lockfile)
@@ -230,13 +319,30 @@ class EventLedger:
         return (len(rows), rows[-1]['hash'] if rows else GENESIS)
 
     def anchor(self, anchor):
-        seq, head = self.head()
-        prior = anchor.latest()
-        n = (prior['anchor_seq'] + 1) if prior else 1
-        from .audit_anchor import checkpoint_digest
-        cp = {'anchor_seq': n, 'ledger_version': self.VERSION, 'ledger_seq': seq, 'head': head}
-        cp['checkpoint_digest'] = checkpoint_digest(self.VERSION, seq, head)
-        return anchor.commit(cp)
+        # Keep the ledger snapshot stable until its checkpoint is committed.
+        # All ledger writers use the same advisory lock, so another process
+        # cannot append between reading/verifying the head and anchor.commit().
+        with self.lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            lock_fd = _open_nofollow(str(self.path) + '.lock', os.O_RDWR | os.O_CREAT)
+            with os.fdopen(lock_fd, 'r+b') as lockfile:
+                _lock(lockfile)
+                try:
+                    rows = self._read()
+                    self._validate_existing(rows)
+                    seq = len(rows)
+                    head = rows[-1]['hash'] if rows else GENESIS
+                    prior = anchor.latest()
+                    n = (prior['anchor_seq'] + 1) if prior else 1
+                    from .audit_anchor import checkpoint_digest
+                    cp = {
+                        'anchor_seq': n, 'ledger_version': self.VERSION,
+                        'ledger_seq': seq, 'head': head
+                    }
+                    cp['checkpoint_digest'] = checkpoint_digest(self.VERSION, seq, head)
+                    return anchor.commit(cp)
+                finally:
+                    _unlock(lockfile)
 
 
 def _lock(f):

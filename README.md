@@ -1,4 +1,4 @@
-# CFS-CTS Core 0.1.3
+# CFS-CTS Core 0.1.4
 
 Chronological Trust & Security core, Python 3.11+. Standard library only. This is a prototype audit component, **not a production tamper-proof logging system**.
 
@@ -51,13 +51,23 @@ This is retry idempotency, **not a filesystem transaction guarantee**. A process
 - `TimeBase`: UTC and monotonic samples, process logical counter, boot/session ID, rollback and UTC jump flags. Default boot ID is a random process-session identifier, not an OS-certified boot UUID.
 - `EventLedger`: canonical UTF-8 JSONL, sequence, unique IDs, SHA-256 chain, parent validation, bounded event size, fsync and best-effort cooperating-process lock; includes retry-idempotent batch append.
 - `CausalTracker`: explicit parent/related edges; timestamp proximity creates no causal edge.
-- `IntegrityChecker`: independent canonical JSON/hash implementation checks sequence, IDs, chain, parent references and anchor.
-- `LocalSimulatedAnchor`: append-only-on-cooperating-writes local journal with sequence/checkpoint. It is **not** an external trust root.
+- `IntegrityChecker`: strict event-schema validation, exact integer sequence checks (booleans rejected), independent canonical JSON/hash verification, causal-reference checks, and fail-closed anchor validation.
+- `LocalSimulatedAnchor`: local journal with checkpoint schema validation and cooperating-process advisory locks. It is **not** an external trust root.
 - `AnchorProtocol`: extension interface for remote independently administered service; no remote implementation/credentials are included.
 
 ## Security boundaries and known risks
 
-A same-privilege attacker can replace both ledger and local anchor, or truncate both. CORE-06 deliberately tests that condition; only a separately administered, authenticated remote anchor can detect it. The current local journal is not cryptographically signed. SHA-256 is unkeyed. External anchoring is not configured. Batch retries are idempotent, but incomplete writes require forensic review. File locking coordinates cooperating processes only. Network filesystems, hostile writers that ignore the lock, power-loss durability, and platform-specific semantics require separate validation. Boot ID is session-generated. Wall time is advisory, monotonic clocks reset across reboot. Checksums do not ensure confidentiality or availability. Do not use as the sole source for safety-critical or legal audit decisions.
+A same-privilege attacker can replace both ledger and local anchor, or truncate both. CORE-06 deliberately tests that condition; only a separately administered, authenticated remote anchor can detect it. The current local journal is not cryptographically signed. SHA-256 is unkeyed. External anchoring is not configured. Batch retries are idempotent, but incomplete writes require forensic review. Ledger and local-anchor locks coordinate cooperating processes only. Network filesystems, hostile writers that ignore the lock, power-loss durability, and platform-specific semantics require separate validation. Boot ID is session-generated. Wall time is advisory, monotonic clocks reset across reboot. Checksums do not ensure confidentiality or availability. Do not use as the sole source for safety-critical or legal audit decisions.
+
+## 0.1.4 hardening
+
+- Integrity verification now requires the complete event schema and rejects boolean/non-integer sequence values.
+- Missing, malformed, or empty anchor history fails closed when an anchor is supplied.
+- Anchor checkpoints are schema/digest checked and local anchor reads/writes use a cross-process advisory lock.
+- Appends refuse to extend an existing ledger that fails independent integrity validation.
+- Anchor snapshots are captured under the ledger's cooperating-process lock and refuse corrupt ledger history.
+- Single-event append validates parent/related collections instead of silently splitting strings.
+- Regression tests cover forged minimal records, boolean sequence values, empty anchors, malformed records, corrupt-history append, and malformed checkpoints.
 
 ## Layout
 
@@ -74,3 +84,10 @@ python run_tests.py
 ```
 
 See [SECURITY_MODEL.md](SECURITY_MODEL.md) for the threat assumptions and production release gates, and [CHANGELOG.md](CHANGELOG.md) for hardening history.
+
+
+## Final 0.1.4 hardening notes
+
+The 0.1.4 candidate also includes strict duplicate-key/non-standard-JSON rejection, canonical persisted payloads, exact checkpoint-field validation, final-component symlink and non-regular-file rejection for ledger/anchor/lock paths, and complete handling of short storage writes. File-write `fsync` errors are surfaced rather than treated as success.
+
+The current CI run validates 45 adversarial cases across Python 3.11–3.13 on Ubuntu, Windows, and macOS (9 matrix jobs). This is a prototype validation result, not a production security certification. Directory-ancestor symlinks are not independently pinned; use a trusted, access-controlled parent directory. A crash or storage failure can still leave a partial JSONL record or batch, which is detected and requires forensic review rather than automatic repair.

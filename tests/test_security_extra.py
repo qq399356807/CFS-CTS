@@ -127,7 +127,7 @@ def test_incomplete_batch():
     try:
         fixture.ledger.append_many('request-003', batch)
     except RuntimeError as exc:
-        assert 'incomplete' in str(exc)
+        assert 'incomplete' in str(exc) or 'integrity validation' in str(exc)
         return {'incomplete_batch_retry_rejected': True, 'automatic_repair': False}
     raise AssertionError('incomplete batch was silently accepted')
 
@@ -257,3 +257,504 @@ def test_valid_anchor_prefix_history():
     result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
     assert result['ok'], result['issues']
     return {'valid_historical_prefixes_accepted': True, 'checkpoints': len(fixture.anchor.history())}
+
+
+def test_integrity_rejects_boolean_sequence_and_missing_schema():
+    import hashlib
+    fixture = Fixture()
+    valid = fixture.add('strict-schema')
+    bad_seq = dict(valid)
+    bad_seq['seq'] = True
+    core = {key: value for key, value in bad_seq.items() if key != 'hash'}
+    bad_seq['hash'] = hashlib.sha256(json.dumps(
+        core, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False
+    ).encode('utf-8')).hexdigest()
+    result = fixture.checker.check([bad_seq])
+    assert not result['ok']
+    assert any(issue['type'] == 'SEQUENCE' for issue in result['issues'])
+
+    minimal = {
+        'seq': True, 'event_id': 'forged-minimal',
+        'prev_hash': '0' * 64, 'parents': []
+    }
+    minimal['hash'] = hashlib.sha256(json.dumps(
+        minimal, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False
+    ).encode('utf-8')).hexdigest()
+    result = fixture.checker.check([minimal])
+    assert not result['ok']
+    assert any(issue['type'] == 'MISSING_EVENT_FIELDS' for issue in result['issues'])
+    return {'boolean_seq_rejected': True, 'minimal_hash_valid_record_rejected': True}
+
+
+def test_integrity_rejects_empty_anchor_and_malformed_rows():
+    fixture = Fixture()
+    fixture.add('anchor-required')
+    result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
+    assert not result['ok']
+    assert any(issue['type'] == 'ANCHOR_MISSING_OR_EMPTY' for issue in result['issues'])
+    malformed = fixture.checker.check([None])
+    assert not malformed['ok']
+    assert any(issue['type'] == 'INVALID_EVENT_TYPE' for issue in malformed['issues'])
+    return {'empty_anchor_fails_closed': True, 'malformed_event_reported_not_raised': True}
+
+
+def test_append_refuses_corrupt_existing_history():
+    fixture = Fixture()
+    fixture.add('before-tamper', {'value': 1})
+    rows = fixture.ledger.events()
+    rows[0]['payload']['value'] = 2
+    fixture.ledger.path.write_text(''.join(json.dumps(row, ensure_ascii=False) + '\n' for row in rows))
+    try:
+        fixture.add('must-not-append')
+    except RuntimeError as exc:
+        assert 'integrity validation' in str(exc)
+        assert len(fixture.ledger.events()) == 1
+        return {'append_aborted_on_corrupt_history': True}
+    raise AssertionError('append extended a corrupt ledger')
+
+
+def test_single_append_rejects_malformed_edges():
+    fixture = Fixture()
+    for field, value in (('parents', 'parent-string'), ('related', ['ok', 7])):
+        try:
+            fixture.ledger.append('bad-' + field, {}, **{field: value})
+        except TypeError:
+            pass
+        else:
+            raise AssertionError(f'malformed {field} accepted')
+    assert fixture.ledger.events() == []
+    return {'malformed_parent_and_related_collections_rejected': True}
+
+
+def test_anchor_rejects_malformed_checkpoint():
+    fixture = Fixture()
+    try:
+        fixture.anchor.commit({'anchor_seq': True})
+    except ValueError:
+        return {'malformed_checkpoint_rejected': True}
+    raise AssertionError('malformed checkpoint accepted')
+
+
+
+def test_batch_append_rejects_duplicate_related_references():
+    fixture = Fixture()
+    try:
+        fixture.ledger.append_many('duplicate-related', [
+            {'event_id': 'batch-duplicate-related', 'payload': {}, 'related': ['ref-1', 'ref-1']}
+        ])
+    except ValueError as exc:
+        assert 'related contains duplicates' in str(exc)
+        assert fixture.ledger.events() == []
+        return {'duplicate_related_references_rejected': True}
+    raise AssertionError('batch append accepted duplicate related references')
+
+
+def test_anchor_commit_refuses_corrupt_existing_history():
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    head = '0' * 64
+    fixture.anchor.commit({
+        'anchor_seq': 1, 'ledger_version': 'CFS-CTS-LEDGER-1',
+        'ledger_seq': 0, 'head': head,
+        'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', 0, head)
+    })
+    corrupted = json.loads(fixture.anchor.path.read_text().splitlines()[0])
+    corrupted['checkpoint_digest'] = 'f' * 64
+    fixture.anchor.path.write_text(json.dumps(corrupted, sort_keys=True, separators=(',', ':')) + '\n')
+    try:
+        fixture.anchor.commit({
+            'anchor_seq': 2, 'ledger_version': 'CFS-CTS-LEDGER-1',
+            'ledger_seq': 0, 'head': head,
+            'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', 0, head)
+        })
+    except ValueError as exc:
+        assert 'digest mismatch' in str(exc)
+        return {'corrupt_anchor_history_rejected_on_append': True}
+    raise AssertionError('anchor appended after corrupt checkpoint history')
+
+
+
+def test_integrity_rejects_anchor_with_non_string_version():
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    fixture.add('anchor-version-schema')
+    fixture.ledger.anchor(fixture.anchor)
+    checkpoint = json.loads(fixture.anchor.path.read_text().splitlines()[0])
+    checkpoint['ledger_version'] = None
+    checkpoint['checkpoint_digest'] = checkpoint_digest(None, checkpoint['ledger_seq'], checkpoint['head'])
+    fixture.anchor.path.write_text(json.dumps(checkpoint, sort_keys=True, separators=(',', ':')) + '\n')
+    result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
+    assert not result['ok']
+    assert any(issue['type'] == 'INVALID_ANCHOR_CHECKPOINT' for issue in result['issues'])
+    return {'non_string_anchor_version_rejected': True}
+
+
+
+def test_integrity_rejects_tampered_batch_metadata():
+    fixture = Fixture()
+    records = fixture.ledger.append_many('batch-audit', [
+        {'event_id': 'batch-audit-1', 'payload': {'v': 1}},
+        {'event_id': 'batch-audit-2', 'payload': {'v': 2}},
+    ])
+    assert fixture.checker.check(records)['ok']
+    tampered = [dict(record) for record in records]
+    for record in tampered:
+        record['batch_digest'] = 'f' * 64
+    # Recompute event hashes so this specifically exercises batch-level verification.
+    previous = '0' * 64
+    import hashlib
+    for record in tampered:
+        record['prev_hash'] = previous
+        core = {key: value for key, value in record.items() if key != 'hash'}
+        record['hash'] = hashlib.sha256(json.dumps(
+            core, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False
+        ).encode('utf-8')).hexdigest()
+        previous = record['hash']
+    result = fixture.checker.check(tampered)
+    assert not result['ok']
+    assert not any(issue['type'] == 'INVALID_BATCH_GROUP' for issue in result['issues'])
+    assert any(issue['type'] == 'BATCH_DIGEST_MISMATCH' for issue in result['issues'])
+    return {'batch_group_and_digest_tampering_rejected': True}
+
+
+
+def test_anchor_refuses_corrupt_ledger_snapshot():
+    fixture = Fixture()
+    fixture.add('before-anchor', {'value': 1})
+    rows = fixture.ledger.events()
+    rows[0]['payload']['value'] = 2
+    fixture.ledger.path.write_text(''.join(
+        json.dumps(row, ensure_ascii=False) + '\n' for row in rows
+    ))
+    try:
+        fixture.ledger.anchor(fixture.anchor)
+    except RuntimeError as exc:
+        assert 'integrity validation' in str(exc)
+        assert fixture.anchor.history() == []
+        return {'anchor_commit_refused_corrupt_ledger': True}
+    raise AssertionError('anchor accepted a corrupt ledger snapshot')
+
+
+def test_integrity_bounds_untrusted_batch_size():
+    import hashlib
+    fixture = Fixture()
+    records = fixture.ledger.append_many('oversized-metadata', [
+        {'event_id': 'oversized-metadata-event', 'payload': {'ok': True}}
+    ])
+    tampered = [dict(records[0])]
+    tampered[0]['batch_size'] = 10 ** 100
+    core = {key: value for key, value in tampered[0].items() if key != 'hash'}
+    tampered[0]['hash'] = hashlib.sha256(json.dumps(
+        core, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False
+    ).encode('utf-8')).hexdigest()
+    result = fixture.checker.check(tampered)
+    assert not result['ok']
+    assert any(issue['type'] == 'INVALID_BATCH_GROUP' for issue in result['issues'])
+    return {'untrusted_batch_size_bounded': True}
+
+
+def test_anchor_rejects_negative_existing_ledger_sequence():
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    head = '0' * 64
+    invalid = {
+        'anchor_seq': 1, 'ledger_version': 'CFS-CTS-LEDGER-1',
+        'ledger_seq': -1, 'head': head,
+        'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', -1, head)
+    }
+    fixture.anchor.path.write_text(json.dumps(invalid, sort_keys=True, separators=(',', ':')) + '\n')
+    next_checkpoint = {
+        'anchor_seq': 2, 'ledger_version': 'CFS-CTS-LEDGER-1',
+        'ledger_seq': 0, 'head': head,
+        'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', 0, head)
+    }
+    try:
+        fixture.anchor.commit(next_checkpoint)
+    except ValueError as exc:
+        assert 'invalid existing ledger sequence' in str(exc)
+        return {'negative_existing_ledger_sequence_rejected': True}
+    raise AssertionError('anchor accepted negative ledger_seq in existing history')
+
+
+
+def test_anchor_rejects_unsupported_ledger_version():
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    head = '0' * 64
+    unsupported = 'CFS-CTS-LEDGER-2'
+    incoming = {
+        'anchor_seq': 1, 'ledger_version': unsupported,
+        'ledger_seq': 0, 'head': head,
+        'checkpoint_digest': checkpoint_digest(unsupported, 0, head)
+    }
+    try:
+        fixture.anchor.commit(incoming)
+    except ValueError as exc:
+        assert 'unsupported ledger_version' in str(exc)
+    else:
+        raise AssertionError('anchor accepted an unsupported incoming ledger version')
+    assert fixture.anchor.history() == []
+
+    existing = {
+        'anchor_seq': 1, 'ledger_version': unsupported,
+        'ledger_seq': 0, 'head': head,
+        'checkpoint_digest': checkpoint_digest(unsupported, 0, head)
+    }
+    fixture.anchor.path.write_text(json.dumps(existing, sort_keys=True, separators=(',', ':')) + '\n')
+    valid_next = {
+        'anchor_seq': 2, 'ledger_version': 'CFS-CTS-LEDGER-1',
+        'ledger_seq': 0, 'head': head,
+        'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', 0, head)
+    }
+    try:
+        fixture.anchor.commit(valid_next)
+    except ValueError as exc:
+        assert 'invalid existing ledger version' in str(exc)
+        return {'unsupported_incoming_and_historical_versions_rejected': True}
+    raise AssertionError('anchor accepted unsupported ledger version in existing history')
+
+
+def test_duplicate_json_keys_rejected_in_ledger_and_anchor():
+    fixture = Fixture()
+    # Duplicate keys are ambiguous across JSON implementations. Reject them.
+    fixture.ledger.path.write_text('{"seq":1,"seq":2}\n', encoding='utf-8')
+    try:
+        fixture.ledger.events()
+    except ValueError as exc:
+        assert 'duplicate JSON object key' in str(exc)
+    else:
+        raise AssertionError('ledger reader accepted duplicate JSON keys')
+
+    fixture.anchor.path.write_text('{"anchor_seq":1,"anchor_seq":2}\n', encoding='utf-8')
+    try:
+        fixture.anchor.history()
+    except ValueError as exc:
+        assert 'duplicate JSON object key' in str(exc)
+    else:
+        raise AssertionError('anchor reader accepted duplicate JSON keys')
+    return {'duplicate_keys_rejected_by_both_readers': True}
+
+
+
+def test_single_append_returns_canonical_persisted_payload():
+    fixture = Fixture()
+    record = fixture.ledger.append(
+        'canonical-payload',
+        {'integer_key': 1, 'nested': {'items': (1, 2)}}
+    )
+    stored = fixture.ledger.events()[0]
+    assert record == stored
+    assert record['payload'] == {
+        'integer_key': 1, 'nested': {'items': [1, 2]}
+    }
+    return {'returned_payload_matches_persisted_canonical_json': True}
+
+
+
+def test_anchor_rejects_unknown_checkpoint_fields():
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    head = '0' * 64
+    valid = {
+        'anchor_seq': 1, 'ledger_version': 'CFS-CTS-LEDGER-1',
+        'ledger_seq': 0, 'head': head,
+        'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', 0, head)
+    }
+    incoming = dict(valid, unexpected='not-in-schema')
+    try:
+        fixture.anchor.commit(incoming)
+    except ValueError as exc:
+        assert 'schema' in str(exc)
+    else:
+        raise AssertionError('anchor accepted unknown incoming checkpoint field')
+    assert fixture.anchor.history() == []
+
+    fixture.anchor.path.write_text(json.dumps(dict(valid, unexpected=True), sort_keys=True) + '\n')
+    try:
+        fixture.anchor.commit(dict(valid, anchor_seq=2))
+    except ValueError as exc:
+        assert 'invalid existing checkpoint' in str(exc)
+    else:
+        raise AssertionError('anchor accepted unknown field in existing history')
+
+    verifier_fixture = Fixture()
+    verifier_fixture.add('strict-anchor-schema')
+    verifier_fixture.ledger.anchor(verifier_fixture.anchor)
+    rows = verifier_fixture.anchor.history()
+    rows[0]['unexpected'] = 'ignored'
+    verifier_fixture.anchor.path.write_text(''.join(json.dumps(row, sort_keys=True) + '\n' for row in rows))
+    result = verifier_fixture.checker.check(verifier_fixture.ledger.events(), verifier_fixture.anchor)
+    assert not result['ok']
+    assert any(issue['type'] == 'INVALID_ANCHOR_CHECKPOINT' for issue in result['issues'])
+    return {'unknown_incoming_historical_and_verified_checkpoint_fields_rejected': True}
+
+
+
+def test_symlinked_ledger_anchor_and_lock_files_rejected():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        victim = root / 'victim.txt'
+        victim.write_text('do-not-touch', encoding='utf-8')
+        try:
+            # A symlinked lock must not redirect advisory locking to an unrelated file.
+            ledger_path = root / 'ledger.jsonl'
+            (root / 'ledger.jsonl.lock').symlink_to(victim)
+            from src.event_ledger import EventLedger
+            from src.timebase import TimeBase
+            ledger = EventLedger(ledger_path, TimeBase())
+            try:
+                ledger.append('blocked-lock', {})
+            except OSError:
+                pass
+            else:
+                raise AssertionError('ledger followed a symlinked lock file')
+            assert victim.read_text(encoding='utf-8') == 'do-not-touch'
+            assert not ledger_path.exists()
+
+            # A symlinked ledger must not redirect reads or appends to another file.
+            ledger_path.unlink(missing_ok=True)
+            (root / 'ledger.jsonl.lock').unlink(missing_ok=True)
+            ledger_path.symlink_to(victim)
+            try:
+                ledger.append('blocked-ledger', {})
+            except OSError:
+                pass
+            else:
+                raise AssertionError('ledger followed a symlinked data file')
+            assert victim.read_text(encoding='utf-8') == 'do-not-touch'
+
+            # Anchor journal and lock paths receive the same protection.
+            from src.audit_anchor import LocalSimulatedAnchor, checkpoint_digest
+            anchor_path = root / 'anchor.jsonl'
+            anchor_lock = root / 'anchor.jsonl.lock'
+            anchor_lock.symlink_to(victim)
+            anchor = LocalSimulatedAnchor(anchor_path)
+            try:
+                anchor.history()
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError('anchor followed a symlinked lock file')
+            anchor_lock.unlink()
+            anchor_path.symlink_to(victim)
+            head = '0' * 64
+            checkpoint = {
+                'anchor_seq': 1, 'ledger_version': 'CFS-CTS-LEDGER-1',
+                'ledger_seq': 0, 'head': head,
+                'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', 0, head)
+            }
+            try:
+                anchor.commit(checkpoint)
+            except OSError:
+                pass
+            else:
+                raise AssertionError('anchor followed a symlinked data file')
+            assert victim.read_text(encoding='utf-8') == 'do-not-touch'
+        except (NotImplementedError, PermissionError) as exc:
+            return {'status': 'BLOCKED', 'reason': f'symlink creation unavailable: {exc}'}
+    return {'ledger_anchor_and_lock_symlinks_rejected_without_touching_target': True}
+
+
+
+def test_non_regular_ledger_anchor_and_lock_paths_rejected():
+    if not hasattr(os, 'mkfifo'):
+        return {'status': 'BLOCKED', 'reason': 'FIFO creation is unavailable on this platform'}
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        from src.event_ledger import EventLedger
+        from src.timebase import TimeBase
+        from src.audit_anchor import LocalSimulatedAnchor
+        fifo_ledger = root / 'ledger.jsonl'
+        os.mkfifo(fifo_ledger)
+        ledger = EventLedger(fifo_ledger, TimeBase())
+        try:
+            ledger.events()
+        except OSError as exc:
+            assert 'non-regular' in str(exc)
+        else:
+            raise AssertionError('ledger read accepted a FIFO')
+
+        fifo_anchor = root / 'anchor.jsonl'
+        os.mkfifo(fifo_anchor)
+        anchor = LocalSimulatedAnchor(fifo_anchor)
+        try:
+            anchor.history()
+        except OSError as exc:
+            assert 'non-regular' in str(exc)
+        else:
+            raise AssertionError('anchor read accepted a FIFO')
+
+        ledger_lock_path = root / 'locked-ledger.jsonl'
+        os.mkfifo(root / 'locked-ledger.jsonl.lock')
+        locked_ledger = EventLedger(ledger_lock_path, TimeBase())
+        try:
+            locked_ledger.append('fifo-lock', {})
+        except OSError as exc:
+            assert 'non-regular' in str(exc)
+        else:
+            raise AssertionError('ledger lock accepted a FIFO symlink')
+        assert not ledger_lock_path.exists()
+    return {'fifo_ledger_anchor_and_lock_paths_rejected_without_blocking': True}
+
+
+
+def test_short_storage_writes_are_completed_and_fsync_failure_is_reported():
+    import src.event_ledger as ledger_module
+    import src.audit_anchor as anchor_module
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    original_write = ledger_module.os.write
+    calls = {'count': 0}
+
+    def short_write(fd, data):
+        calls['count'] += 1
+        return original_write(fd, data[:max(1, min(11, len(data)))])
+
+    ledger_module.os.write = short_write
+    try:
+        first = fixture.ledger.append('short-write-single', {'kind': 'single'})
+        batch = fixture.ledger.append_many('short-write-batch', [
+            {'event_id': 'short-write-batch-1', 'payload': {'n': 1}},
+            {'event_id': 'short-write-batch-2', 'payload': {'n': 2}},
+        ])
+        head = fixture.ledger.head()
+        checkpoint = {
+            'anchor_seq': 1, 'ledger_version': 'CFS-CTS-LEDGER-1',
+            'ledger_seq': head[0], 'head': head[1],
+        }
+        checkpoint['checkpoint_digest'] = checkpoint_digest(
+            checkpoint['ledger_version'], checkpoint['ledger_seq'], checkpoint['head']
+        )
+        fixture.anchor.commit(checkpoint)
+    finally:
+        ledger_module.os.write = original_write
+
+    assert calls['count'] > 3
+    assert fixture.ledger.events()[-3]['event_id'] == first['event_id']
+    assert [row['event_id'] for row in batch] == [
+        'short-write-batch-1', 'short-write-batch-2'
+    ]
+    assert fixture.anchor.latest() == checkpoint
+
+    original_fsync = anchor_module.os.fsync
+    def fail_fsync(_fd):
+        raise OSError('injected fsync failure')
+    anchor_module.os.fsync = fail_fsync
+    try:
+        try:
+            fixture.ledger.append('fsync-failure-outcome', {})
+        except OSError as exc:
+            assert 'injected fsync failure' in str(exc)
+        else:
+            raise AssertionError('fsync failure was hidden from caller')
+    finally:
+        anchor_module.os.fsync = original_fsync
+
+    # The write may already have reached the page cache before fsync fails:
+    # the API reports an ambiguous durability outcome rather than claiming success.
+    assert fixture.ledger.events()[-1]['event_id'] == 'fsync-failure-outcome'
+    return {
+        'short_writes_retried_until_complete': calls['count'],
+        'ledger_batch_and_anchor_persisted': True,
+        'fsync_failure_propagated_with_ambiguous_commit_outcome': True,
+    }

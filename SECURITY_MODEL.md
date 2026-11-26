@@ -1,4 +1,4 @@
-# CFS-CTS Core 0.1.3 — Security model
+# CFS-CTS Core 0.1.4 — Security model
 
 ## Scope
 
@@ -46,3 +46,24 @@ Passing the local test suite demonstrates only that the tested assertions held i
 ## Historical anchor-to-ledger continuity (0.1.3)
 
 When an anchor history is supplied to the verifier, every checkpoint is checked against the ledger prefix it claims to represent. The checkpoint's `ledger_seq` must be an integer (not a boolean) in the range zero through the supplied ledger length; its `head` must equal the hash at exactly that prefix (the genesis hash for sequence zero). The checkpoint digest and monotonic anchor/ledger sequence checks remain in force. This detects internally inconsistent local history, but does not make a locally stored anchor independently trustworthy: a same-privilege attacker can rewrite both files and recompute unkeyed digests.
+
+
+## 0.1.4 verifier and local-anchor hardening
+
+- The verifier requires the full event record schema, checks sequence values as integers excluding booleans, validates timestamp/payload/edge types, and rejects malformed records without allowing a successful result.
+- Supplying an anchor requires a non-empty, readable history. Each checkpoint is checked for required fields, sequence types/ranges, digest integrity, and ledger-prefix continuity.
+- Local anchor commit/read operations use a cooperating-process advisory lock in addition to an in-process lock. This reduces concurrent-writer races but does not protect against hostile writers that ignore locks or same-privilege replacement of the files.
+- Single and batch appends first run the independent verifier over existing history; a corrupt history is not extended.
+- Anchor creation validates the ledger and holds the ledger advisory lock through checkpoint commit, preventing an intervening cooperating append from making the snapshot stale.
+- Single-event parent and related references must be explicit lists of non-empty strings; strings are not accepted as iterable collections.
+
+These controls harden input validation and accidental/concurrent corruption detection. They do not turn the local anchor into an independent trust root, and do not defend against an attacker able to rewrite both files and recompute unkeyed SHA-256 values.
+
+
+## 0.1.4 storage-path and write-completion controls
+
+Ledger, local-anchor, and lock-file opens reject final-component symlinks (using `O_NOFOLLOW` where available) and reject non-regular files after opening. The fallback symlink check on platforms without `O_NOFOLLOW` is subject to filesystem races. Parent-directory components are not opened and pinned one-by-one; therefore directory-ancestor symlinks and replacement remain within the trusted-filesystem boundary. Store these files beneath a directory whose ownership and permissions prevent untrusted replacement.
+
+Append paths loop until all bytes have been written and surface a failed or zero-progress write. File `fsync` failures are propagated. This does not imply directory-entry durability, power-loss atomicity, or equivalent guarantees across every filesystem. A partial JSONL tail or incomplete batch is rejected and preserved for forensic review; there is no automatic repair.
+
+The 0.1.4 CI candidate passed 45 adversarial cases across 9 Ubuntu/Windows/macOS and Python 3.11/3.12/3.13 matrix jobs. These results cover the tested CI environments only and do not satisfy the independent review, remote-anchor, reproducible-build, signed-release, or power-loss testing gates above.

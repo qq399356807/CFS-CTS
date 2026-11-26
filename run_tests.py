@@ -33,6 +33,25 @@ def main():
         ('SEC-17', 'historical anchor prefix mismatch rejected', sec.test_anchor_prefix_mismatch_with_valid_digest),
         ('SEC-18', 'anchor checkpoint sequence range enforced', sec.test_anchor_sequence_out_of_range),
         ('SEC-19', 'valid historical anchor prefixes accepted', sec.test_valid_anchor_prefix_history),
+        ('SEC-20', 'boolean sequence and incomplete event schema rejected', sec.test_integrity_rejects_boolean_sequence_and_missing_schema),
+        ('SEC-21', 'empty anchor and malformed rows fail closed', sec.test_integrity_rejects_empty_anchor_and_malformed_rows),
+        ('SEC-22', 'append refuses corrupt existing ledger history', sec.test_append_refuses_corrupt_existing_history),
+        ('SEC-23', 'single append validates causal edge collections', sec.test_single_append_rejects_malformed_edges),
+        ('SEC-24', 'anchor rejects malformed checkpoint records', sec.test_anchor_rejects_malformed_checkpoint),
+        ('SEC-25', 'batch append rejects duplicate related references', sec.test_batch_append_rejects_duplicate_related_references),
+        ('SEC-26', 'anchor append rejects corrupt existing history', sec.test_anchor_commit_refuses_corrupt_existing_history),
+        ('SEC-28', 'integrity checker rejects tampered batch metadata', sec.test_integrity_rejects_tampered_batch_metadata),
+        ('SEC-29', 'anchor refuses corrupt ledger snapshots', sec.test_anchor_refuses_corrupt_ledger_snapshot),
+        ('SEC-30', 'integrity checker bounds untrusted batch size', sec.test_integrity_bounds_untrusted_batch_size),
+        ('SEC-31', 'anchor rejects negative ledger sequence in existing history', sec.test_anchor_rejects_negative_existing_ledger_sequence),
+        ('SEC-32', 'anchor rejects unsupported ledger versions', sec.test_anchor_rejects_unsupported_ledger_version),
+        ('SEC-33', 'ledger and anchor reject duplicate JSON object keys', sec.test_duplicate_json_keys_rejected_in_ledger_and_anchor),
+        ('SEC-34', 'single append returns canonical persisted payload', sec.test_single_append_returns_canonical_persisted_payload),
+        ('SEC-35', 'anchor rejects unknown checkpoint fields', sec.test_anchor_rejects_unknown_checkpoint_fields),
+        ('SEC-36', 'symlinked ledger, anchor, and lock files rejected', sec.test_symlinked_ledger_anchor_and_lock_files_rejected),
+        ('SEC-37', 'non-regular ledger, anchor, and lock files rejected', sec.test_non_regular_ledger_anchor_and_lock_paths_rejected),
+        ('SEC-38', 'short storage writes completed and fsync failures surfaced', sec.test_short_storage_writes_are_completed_and_fsync_failure_is_reported),
+        ('SEC-27', 'integrity checker rejects malformed anchor version type', sec.test_integrity_rejects_anchor_with_non_string_version),
     ]
     out = []
     for ident, name, fn in cases:
@@ -56,7 +75,7 @@ def main():
                 [traceback.format_exc()]
             ).as_dict())
     report = {
-        'project': 'CFS CTS Core', 'version': '0.1.3',
+        'project': 'CFS CTS Core', 'version': '0.1.4',
         'python': sys.version, 'platform': platform.platform(),
         'generated_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
         'external_anchor_configured': False,
