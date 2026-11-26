@@ -653,3 +653,47 @@ def test_symlinked_ledger_anchor_and_lock_files_rejected():
         except (NotImplementedError, PermissionError) as exc:
             return {'status': 'BLOCKED', 'reason': f'symlink creation unavailable: {exc}'}
     return {'ledger_anchor_and_lock_symlinks_rejected_without_touching_target': True}
+
+
+
+def test_non_regular_ledger_anchor_and_lock_paths_rejected():
+    if not hasattr(os, 'mkfifo'):
+        return {'status': 'BLOCKED', 'reason': 'FIFO creation is unavailable on this platform'}
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        from src.event_ledger import EventLedger
+        from src.timebase import TimeBase
+        from src.audit_anchor import LocalSimulatedAnchor
+        fifo_ledger = root / 'ledger.jsonl'
+        os.mkfifo(fifo_ledger)
+        ledger = EventLedger(fifo_ledger, TimeBase())
+        try:
+            ledger.events()
+        except OSError as exc:
+            assert 'non-regular' in str(exc)
+        else:
+            raise AssertionError('ledger read accepted a FIFO')
+
+        fifo_anchor = root / 'anchor.jsonl'
+        os.mkfifo(fifo_anchor)
+        anchor = LocalSimulatedAnchor(fifo_anchor)
+        try:
+            anchor.history()
+        except OSError as exc:
+            assert 'non-regular' in str(exc)
+        else:
+            raise AssertionError('anchor read accepted a FIFO')
+
+        fifo_lock = root / 'lock-target'
+        os.mkfifo(fifo_lock)
+        ledger_lock_path = root / 'locked-ledger.jsonl'
+        (root / 'locked-ledger.jsonl.lock').symlink_to(fifo_lock)
+        locked_ledger = EventLedger(ledger_lock_path, TimeBase())
+        try:
+            locked_ledger.append('fifo-lock', {})
+        except OSError as exc:
+            assert 'non-regular' in str(exc)
+        else:
+            raise AssertionError('ledger lock accepted a FIFO symlink')
+        assert not ledger_lock_path.exists()
+    return {'fifo_ledger_anchor_and_lock_paths_rejected_without_blocking': True}
