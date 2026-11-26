@@ -569,7 +569,7 @@ def test_anchor_rejects_unknown_checkpoint_fields():
         raise AssertionError('anchor accepted unknown incoming checkpoint field')
     assert fixture.anchor.history() == []
 
-    fixture.anchor.path.write_text(json.dumps(dict(valid, unexpected=True), sort_keys=True) + '\\n')
+    fixture.anchor.path.write_text(json.dumps(dict(valid, unexpected=True), sort_keys=True) + '\n')
     try:
         fixture.anchor.commit(dict(valid, anchor_seq=2))
     except ValueError as exc:
@@ -582,7 +582,7 @@ def test_anchor_rejects_unknown_checkpoint_fields():
     verifier_fixture.ledger.anchor(verifier_fixture.anchor)
     rows = verifier_fixture.anchor.history()
     rows[0]['unexpected'] = 'ignored'
-    verifier_fixture.anchor.path.write_text(''.join(json.dumps(row, sort_keys=True) + '\\n' for row in rows))
+    verifier_fixture.anchor.path.write_text(''.join(json.dumps(row, sort_keys=True) + '\n' for row in rows))
     result = verifier_fixture.checker.check(verifier_fixture.ledger.events(), verifier_fixture.anchor)
     assert not result['ok']
     assert any(issue['type'] == 'INVALID_ANCHOR_CHECKPOINT' for issue in result['issues'])
