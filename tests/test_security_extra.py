@@ -500,7 +500,7 @@ def test_anchor_rejects_unsupported_ledger_version():
         'ledger_seq': 0, 'head': head,
         'checkpoint_digest': checkpoint_digest(unsupported, 0, head)
     }
-    fixture.anchor.path.write_text(json.dumps(existing, sort_keys=True, separators=(',', ':')) + '\\n')
+    fixture.anchor.path.write_text(json.dumps(existing, sort_keys=True, separators=(',', ':')) + '\n')
     valid_next = {
         'anchor_seq': 2, 'ledger_version': 'CFS-CTS-LEDGER-1',
         'ledger_seq': 0, 'head': head,
