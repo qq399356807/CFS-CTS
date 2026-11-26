@@ -695,3 +695,66 @@ def test_non_regular_ledger_anchor_and_lock_paths_rejected():
             raise AssertionError('ledger lock accepted a FIFO symlink')
         assert not ledger_lock_path.exists()
     return {'fifo_ledger_anchor_and_lock_paths_rejected_without_blocking': True}
+
+
+
+def test_short_storage_writes_are_completed_and_fsync_failure_is_reported():
+    import src.event_ledger as ledger_module
+    import src.audit_anchor as anchor_module
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    original_write = ledger_module.os.write
+    calls = {'count': 0}
+
+    def short_write(fd, data):
+        calls['count'] += 1
+        return original_write(fd, data[:max(1, min(11, len(data)))])
+
+    ledger_module.os.write = short_write
+    try:
+        first = fixture.ledger.append('short-write-single', {'kind': 'single'})
+        batch = fixture.ledger.append_many('short-write-batch', [
+            {'event_id': 'short-write-batch-1', 'payload': {'n': 1}},
+            {'event_id': 'short-write-batch-2', 'payload': {'n': 2}},
+        ])
+        head = fixture.ledger.head()
+        checkpoint = {
+            'anchor_seq': 1, 'ledger_version': 'CFS-CTS-LEDGER-1',
+            'ledger_seq': head[0], 'head': head[1],
+        }
+        checkpoint['checkpoint_digest'] = checkpoint_digest(
+            checkpoint['ledger_version'], checkpoint['ledger_seq'], checkpoint['head']
+        )
+        fixture.anchor.commit(checkpoint)
+    finally:
+        ledger_module.os.write = original_write
+
+    assert calls['count'] > 3
+    assert fixture.ledger.events()[-3]['event_id'] == first['event_id']
+    assert [row['event_id'] for row in batch] == [
+        'short-write-batch-1', 'short-write-batch-2'
+    ]
+    assert fixture.anchor.latest() == checkpoint
+
+    original_fsync = anchor_module.os.fsync
+    def fail_fsync(_fd):
+        raise OSError('injected fsync failure')
+    anchor_module.os.fsync = fail_fsync
+    try:
+        try:
+            fixture.ledger.append('fsync-failure-outcome', {})
+        except OSError as exc:
+            assert 'injected fsync failure' in str(exc)
+        else:
+            raise AssertionError('fsync failure was hidden from caller')
+    finally:
+        anchor_module.os.fsync = original_fsync
+
+    # The write may already have reached the page cache before fsync fails:
+    # the API reports an ambiguous durability outcome rather than claiming success.
+    assert fixture.ledger.events()[-1]['event_id'] == 'fsync-failure-outcome'
+    return {
+        'short_writes_retried_until_complete': calls['count'],
+        'ledger_batch_and_anchor_persisted': True,
+        'fsync_failure_propagated_with_ambiguous_commit_outcome': True,
+    }
