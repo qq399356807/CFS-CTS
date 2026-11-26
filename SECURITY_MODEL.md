@@ -58,3 +58,12 @@ When an anchor history is supplied to the verifier, every checkpoint is checked 
 - Single-event parent and related references must be explicit lists of non-empty strings; strings are not accepted as iterable collections.
 
 These controls harden input validation and accidental/concurrent corruption detection. They do not turn the local anchor into an independent trust root, and do not defend against an attacker able to rewrite both files and recompute unkeyed SHA-256 values.
+
+
+## 0.1.4 storage-path and write-completion controls
+
+Ledger, local-anchor, and lock-file opens reject final-component symlinks (using `O_NOFOLLOW` where available) and reject non-regular files after opening. The fallback symlink check on platforms without `O_NOFOLLOW` is subject to filesystem races. Parent-directory components are not opened and pinned one-by-one; therefore directory-ancestor symlinks and replacement remain within the trusted-filesystem boundary. Store these files beneath a directory whose ownership and permissions prevent untrusted replacement.
+
+Append paths loop until all bytes have been written and surface a failed or zero-progress write. File `fsync` failures are propagated. This does not imply directory-entry durability, power-loss atomicity, or equivalent guarantees across every filesystem. A partial JSONL tail or incomplete batch is rejected and preserved for forensic review; there is no automatic repair.
+
+The 0.1.4 CI candidate passed 45 adversarial cases across 9 Ubuntu/Windows/macOS and Python 3.11/3.12/3.13 matrix jobs. These results cover the tested CI environments only and do not satisfy the independent review, remote-anchor, reproducible-build, signed-release, or power-loss testing gates above.
