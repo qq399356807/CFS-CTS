@@ -577,12 +577,13 @@ def test_anchor_rejects_unknown_checkpoint_fields():
     else:
         raise AssertionError('anchor accepted unknown field in existing history')
 
-    fixture.add('strict-anchor-schema')
-    fixture.ledger.anchor(fixture.anchor)
-    rows = fixture.anchor.history()
+    verifier_fixture = Fixture()
+    verifier_fixture.add('strict-anchor-schema')
+    verifier_fixture.ledger.anchor(verifier_fixture.anchor)
+    rows = verifier_fixture.anchor.history()
     rows[0]['unexpected'] = 'ignored'
-    fixture.anchor.path.write_text(''.join(json.dumps(row, sort_keys=True) + '\\n' for row in rows))
-    result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
+    verifier_fixture.anchor.path.write_text(''.join(json.dumps(row, sort_keys=True) + '\\n' for row in rows))
+    result = verifier_fixture.checker.check(verifier_fixture.ledger.events(), verifier_fixture.anchor)
     assert not result['ok']
     assert any(issue['type'] == 'INVALID_ANCHOR_CHECKPOINT' for issue in result['issues'])
     return {'unknown_incoming_historical_and_verified_checkpoint_fields_rejected': True}
