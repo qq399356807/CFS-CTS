@@ -172,8 +172,8 @@ class IntegrityChecker:
                             self._issue(issues, "INVALID_ANCHOR_CHECKPOINT", i)
                             continue
                         required = {"anchor_seq", "ledger_version", "ledger_seq", "head", "checkpoint_digest"}
-                        if not required.issubset(cp):
-                            self._issue(issues, "INVALID_ANCHOR_CHECKPOINT", i)
+                        if set(cp) != required:
+                            self._issue(issues, "INVALID_ANCHOR_CHECKPOINT", i, fields=sorted(set(cp) ^ required))
                             continue
                         if (not isinstance(cp.get("ledger_version"), str) or not cp.get("ledger_version")
                                 or cp.get("ledger_version") != "CFS-CTS-LEDGER-1"
