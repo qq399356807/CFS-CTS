@@ -45,6 +45,7 @@ def main():
         ('SEC-30', 'integrity checker bounds untrusted batch size', sec.test_integrity_bounds_untrusted_batch_size),
         ('SEC-31', 'anchor rejects negative ledger sequence in existing history', sec.test_anchor_rejects_negative_existing_ledger_sequence),
         ('SEC-32', 'anchor rejects unsupported ledger versions', sec.test_anchor_rejects_unsupported_ledger_version),
+        ('SEC-33', 'ledger and anchor reject duplicate JSON object keys', sec.test_duplicate_json_keys_rejected_in_ledger_and_anchor),
         ('SEC-27', 'integrity checker rejects malformed anchor version type', sec.test_integrity_rejects_anchor_with_non_string_version),
     ]
     out = []
