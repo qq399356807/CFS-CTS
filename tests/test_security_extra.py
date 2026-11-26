@@ -512,3 +512,24 @@ def test_anchor_rejects_unsupported_ledger_version():
         assert 'invalid existing ledger version' in str(exc)
         return {'unsupported_incoming_and_historical_versions_rejected': True}
     raise AssertionError('anchor accepted unsupported ledger version in existing history')
+
+
+def test_duplicate_json_keys_rejected_in_ledger_and_anchor():
+    fixture = Fixture()
+    # Duplicate keys are ambiguous across JSON implementations. Reject them.
+    fixture.ledger.path.write_text('{"seq":1,"seq":2}\\n', encoding='utf-8')
+    try:
+        fixture.ledger.events()
+    except ValueError as exc:
+        assert 'duplicate JSON object key' in str(exc)
+    else:
+        raise AssertionError('ledger reader accepted duplicate JSON keys')
+
+    fixture.anchor.path.write_text('{"anchor_seq":1,"anchor_seq":2}\\n', encoding='utf-8')
+    try:
+        fixture.anchor.history()
+    except ValueError as exc:
+        assert 'duplicate JSON object key' in str(exc)
+    else:
+        raise AssertionError('anchor reader accepted duplicate JSON keys')
+    return {'duplicate_keys_rejected_by_both_readers': True}
