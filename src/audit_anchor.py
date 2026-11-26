@@ -12,16 +12,25 @@ _HEX = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _open_nofollow(path, flags, mode=0o600):
-    """Open a file without following a final-component symlink where supported."""
-    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    """Open a regular file without following a final-component symlink."""
+    nofollow = getattr(os, 'O_NOFOLLOW', 0)
     if not nofollow:
         try:
             if stat.S_ISLNK(os.lstat(path).st_mode):
-                raise OSError(f"refusing symlink file: {path}")
+                raise OSError(f'refusing symlink file: {path}')
         except FileNotFoundError:
             pass
-    flags |= nofollow | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_BINARY", 0)
-    return os.open(str(path), flags, mode)
+    # O_NONBLOCK prevents a hostile FIFO from hanging a read before fstat().
+    flags |= (nofollow | getattr(os, 'O_CLOEXEC', 0)
+              | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NONBLOCK', 0))
+    fd = os.open(str(path), flags, mode)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise OSError(f'refusing non-regular file: {path}')
+        return fd
+    except Exception:
+        os.close(fd)
+        raise
 
 
 def _unique_json_object(pairs):
