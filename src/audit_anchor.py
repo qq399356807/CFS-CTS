@@ -33,6 +33,20 @@ def _open_nofollow(path, flags, mode=0o600):
         raise
 
 
+def _write_all(fd, data):
+    """Write every byte or fail; os.write is permitted to return short counts."""
+    view = memoryview(data)
+    offset = 0
+    while offset < len(view):
+        try:
+            written = os.write(fd, view[offset:])
+        except InterruptedError:
+            continue
+        if written is None or written <= 0:
+            raise OSError("storage write made no forward progress")
+        offset += written
+
+
 def _unique_json_object(pairs):
     result = {}
     for key, value in pairs:
@@ -190,10 +204,11 @@ class LocalSimulatedAnchor(AnchorProtocol):
                 data = canonical_bytes(checkpoint) + b"\n"
                 self.path.parent.mkdir(parents=True, exist_ok=True)
                 data_fd = _open_nofollow(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT)
-                with os.fdopen(data_fd, "ab") as stream:
-                    stream.write(data)
-                    stream.flush()
-                    os.fsync(stream.fileno())
+                try:
+                    _write_all(data_fd, data)
+                    os.fsync(data_fd)
+                finally:
+                    os.close(data_fd)
                 return checkpoint
             finally:
                 self._unlock(lockfile)
