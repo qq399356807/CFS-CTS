@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.1.4 — verifier and anchor hardening
+## 0.1.4 — verifier, storage, and anchor hardening
+
+- Reject duplicate JSON object keys and non-standard JSON constants in ledger and anchor readers.
+- Normalize single-append payloads through canonical JSON so the returned record matches persisted data.
+- Enforce an exact checkpoint field allowlist for incoming, historical, and independently verified checkpoints.
+- Reject final-component symlinks and non-regular files for ledger, anchor, and lock paths; complete short writes and report fsync failures.
+- Validate 45 adversarial cases across Ubuntu, Windows, and macOS with Python 3.11–3.13 (9 CI matrix jobs).
+- Parent-directory symlink traversal is not pinned; deployments must use trusted, access-controlled parent directories. Crash/power-loss atomicity and automatic forensic recovery are not provided.
+
 
 - Require complete event schemas and strict integer sequence values; booleans no longer pass as sequence 1.
 - Fail closed for missing, empty, or malformed anchor histories and validate checkpoint schemas.
