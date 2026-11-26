@@ -2,10 +2,24 @@
 from __future__ import annotations
 import hashlib, json, os, threading, uuid
 from pathlib import Path
+import stat
 from .audit_anchor import canonical_bytes
 from .causal_tracker import CausalTracker
 
 GENESIS = '0' * 64
+
+
+def _open_nofollow(path, flags, mode=0o600):
+    """Open a file without following a final-component symlink where supported."""
+    nofollow = getattr(os, 'O_NOFOLLOW', 0)
+    if not nofollow:
+        try:
+            if stat.S_ISLNK(os.lstat(path).st_mode):
+                raise OSError(f'refusing symlink file: {path}')
+        except FileNotFoundError:
+            pass
+    flags |= nofollow | getattr(os, 'O_CLOEXEC', 0) | getattr(os, 'O_BINARY', 0)
+    return os.open(str(path), flags, mode)
 
 
 def _unique_json_object(pairs):
@@ -35,9 +49,12 @@ class EventLedger:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def _read(self):
-        if not self.path.exists():
+        try:
+            fd = _open_nofollow(self.path, os.O_RDONLY)
+        except FileNotFoundError:
             return []
-        raw = self.path.read_bytes()
+        with os.fdopen(fd, 'rb') as stream:
+            raw = stream.read()
         if raw and not raw.endswith(b'\n'):
             raise ValueError('truncated JSONL tail')
         rows = []
@@ -65,7 +82,8 @@ class EventLedger:
     def append(self, event_id=None, payload=None, parents=None, related=None):
         with self.lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            with open(str(self.path) + '.lock', 'a+b') as lockfile:
+            lock_fd = _open_nofollow(str(self.path) + '.lock', os.O_RDWR | os.O_CREAT)
+            with os.fdopen(lock_fd, 'r+b') as lockfile:
                 _lock(lockfile)
                 try:
                     rows = self._read()
@@ -117,7 +135,8 @@ class EventLedger:
                         raise ValueError('event exceeds maximum encoded size')
                     record = {**core, 'hash': self._digest(core)}
                     data = canonical_bytes(record) + b'\n'
-                    with self.path.open('ab') as f:
+                    data_fd = _open_nofollow(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT)
+                    with os.fdopen(data_fd, 'ab') as f:
                         f.write(data)
                         f.flush()
                         os.fsync(f.fileno())
@@ -182,7 +201,8 @@ class EventLedger:
 
         with self.lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            with open(str(self.path) + '.lock', 'a+b') as lockfile:
+            lock_fd = _open_nofollow(str(self.path) + '.lock', os.O_RDWR | os.O_CREAT)
+            with os.fdopen(lock_fd, 'r+b') as lockfile:
                 _lock(lockfile)
                 try:
                     rows = self._read()
@@ -256,7 +276,8 @@ class EventLedger:
                         parent_seq[eid] = next_seq + index
 
                     data = b''.join(chunks)
-                    with self.path.open('ab') as f:
+                    data_fd = _open_nofollow(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT)
+                    with os.fdopen(data_fd, 'ab') as f:
                         f.write(data)
                         f.flush()
                         os.fsync(f.fileno())
@@ -278,7 +299,8 @@ class EventLedger:
         # cannot append between reading/verifying the head and anchor.commit().
         with self.lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            with open(str(self.path) + '.lock', 'a+b') as lockfile:
+            lock_fd = _open_nofollow(str(self.path) + '.lock', os.O_RDWR | os.O_CREAT)
+            with os.fdopen(lock_fd, 'r+b') as lockfile:
                 _lock(lockfile)
                 try:
                     rows = self._read()
