@@ -10,6 +10,19 @@ from pathlib import Path
 _HEX = re.compile(r"^[0-9a-f]{64}$")
 
 
+def _unique_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object key: {key!r}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value):
+    raise ValueError(f"non-standard JSON constant: {value}")
+
+
 def canonical_bytes(obj):
     return json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
@@ -46,7 +59,7 @@ class LocalSimulatedAnchor(AnchorProtocol):
         rows = []
         for number, line in enumerate(raw.splitlines(), 1):
             try:
-                item = json.loads(line)
+                item = json.loads(line, object_pairs_hook=_unique_json_object, parse_constant=_reject_json_constant)
             except (json.JSONDecodeError, UnicodeDecodeError) as exc:
                 raise ValueError(f"invalid anchor JSON at line {number}: {exc}") from exc
             if not isinstance(item, dict):
