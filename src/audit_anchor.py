@@ -73,7 +73,7 @@ class LocalSimulatedAnchor(AnchorProtocol):
         previous_ledger_seq = -1
         required = {"anchor_seq", "ledger_version", "ledger_seq", "head", "checkpoint_digest"}
         for index, item in enumerate(history, 1):
-            if not isinstance(item, dict) or not required.issubset(item):
+            if not isinstance(item, dict) or set(item) != required:
                 raise ValueError(f"invalid existing checkpoint at sequence {index}")
             aseq, lseq = item["anchor_seq"], item["ledger_seq"]
             if isinstance(aseq, bool) or not isinstance(aseq, int) or aseq != index:
@@ -94,8 +94,8 @@ class LocalSimulatedAnchor(AnchorProtocol):
         if not isinstance(checkpoint, dict):
             raise TypeError("checkpoint must be an object")
         required = {"anchor_seq", "ledger_version", "ledger_seq", "head", "checkpoint_digest"}
-        if not required.issubset(checkpoint):
-            raise ValueError("checkpoint is missing required fields")
+        if set(checkpoint) != required:
+            raise ValueError("checkpoint fields do not match the supported schema")
         aseq, lseq = checkpoint["anchor_seq"], checkpoint["ledger_seq"]
         if isinstance(aseq, bool) or not isinstance(aseq, int) or aseq < 1:
             raise ValueError("anchor_seq must be a positive integer")
