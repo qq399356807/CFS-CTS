@@ -548,3 +548,41 @@ def test_single_append_returns_canonical_persisted_payload():
         'integer_key': 1, 'nested': {'items': [1, 2]}
     }
     return {'returned_payload_matches_persisted_canonical_json': True}
+
+
+
+def test_anchor_rejects_unknown_checkpoint_fields():
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    head = '0' * 64
+    valid = {
+        'anchor_seq': 1, 'ledger_version': 'CFS-CTS-LEDGER-1',
+        'ledger_seq': 0, 'head': head,
+        'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', 0, head)
+    }
+    incoming = dict(valid, unexpected='not-in-schema')
+    try:
+        fixture.anchor.commit(incoming)
+    except ValueError as exc:
+        assert 'schema' in str(exc)
+    else:
+        raise AssertionError('anchor accepted unknown incoming checkpoint field')
+    assert fixture.anchor.history() == []
+
+    fixture.anchor.path.write_text(json.dumps(dict(valid, unexpected=True), sort_keys=True) + '\\n')
+    try:
+        fixture.anchor.commit(dict(valid, anchor_seq=2))
+    except ValueError as exc:
+        assert 'invalid existing checkpoint' in str(exc)
+    else:
+        raise AssertionError('anchor accepted unknown field in existing history')
+
+    fixture.add('strict-anchor-schema')
+    fixture.ledger.anchor(fixture.anchor)
+    rows = fixture.anchor.history()
+    rows[0]['unexpected'] = 'ignored'
+    fixture.anchor.path.write_text(''.join(json.dumps(row, sort_keys=True) + '\\n' for row in rows))
+    result = fixture.checker.check(fixture.ledger.events(), fixture.anchor)
+    assert not result['ok']
+    assert any(issue['type'] == 'INVALID_ANCHOR_CHECKPOINT' for issue in result['issues'])
+    return {'unknown_incoming_historical_and_verified_checkpoint_fields_rejected': True}
