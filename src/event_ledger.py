@@ -8,6 +8,19 @@ from .causal_tracker import CausalTracker
 GENESIS = '0' * 64
 
 
+def _unique_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f'duplicate JSON object key: {key!r}')
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value):
+    raise ValueError(f'non-standard JSON constant: {value}')
+
+
 class EventLedger:
     VERSION = 'CFS-CTS-LEDGER-1'
     MAX_EVENT_BYTES = 1_048_576
@@ -30,7 +43,7 @@ class EventLedger:
         rows = []
         for i, line in enumerate(raw.splitlines(), 1):
             try:
-                row = json.loads(line)
+                row = json.loads(line, object_pairs_hook=_unique_json_object, parse_constant=_reject_json_constant)
                 if not isinstance(row, dict):
                     raise ValueError('record must be a JSON object')
                 rows.append(row)
