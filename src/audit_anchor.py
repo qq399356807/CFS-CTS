@@ -6,8 +6,22 @@ import os
 import re
 import threading
 from pathlib import Path
+import stat
 
 _HEX = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _open_nofollow(path, flags, mode=0o600):
+    """Open a file without following a final-component symlink where supported."""
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow:
+        try:
+            if stat.S_ISLNK(os.lstat(path).st_mode):
+                raise OSError(f"refusing symlink file: {path}")
+        except FileNotFoundError:
+            pass
+    flags |= nofollow | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_BINARY", 0)
+    return os.open(str(path), flags, mode)
 
 
 def _unique_json_object(pairs):
@@ -51,9 +65,12 @@ class LocalSimulatedAnchor(AnchorProtocol):
         self.lock_path = Path(str(self.path) + ".lock")
 
     def _load(self):
-        if not self.path.exists():
+        try:
+            fd = _open_nofollow(self.path, os.O_RDONLY)
+        except FileNotFoundError:
             return []
-        raw = self.path.read_bytes()
+        with os.fdopen(fd, "rb") as stream:
+            raw = stream.read()
         if raw and not raw.endswith(b"\n"):
             raise ValueError("truncated anchor journal")
         rows = []
@@ -117,8 +134,9 @@ class LocalSimulatedAnchor(AnchorProtocol):
     def _locked(self):
         """Cross-process advisory lock; only coordinates cooperating writers."""
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-        stream = self.lock_path.open("a+b")
         try:
+            fd = _open_nofollow(self.lock_path, os.O_RDWR | os.O_CREAT)
+            stream = os.fdopen(fd, "r+b")
             if os.name == "nt":
                 import msvcrt
                 stream.seek(0, os.SEEK_END)
@@ -156,7 +174,8 @@ class LocalSimulatedAnchor(AnchorProtocol):
                 self._validate_checkpoint(checkpoint, history)
                 data = canonical_bytes(checkpoint) + b"\n"
                 self.path.parent.mkdir(parents=True, exist_ok=True)
-                with self.path.open("ab") as stream:
+                data_fd = _open_nofollow(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT)
+                with os.fdopen(data_fd, "ab") as stream:
                     stream.write(data)
                     stream.flush()
                     os.fsync(stream.fileno())
