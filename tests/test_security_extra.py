@@ -533,3 +533,18 @@ def test_duplicate_json_keys_rejected_in_ledger_and_anchor():
     else:
         raise AssertionError('anchor reader accepted duplicate JSON keys')
     return {'duplicate_keys_rejected_by_both_readers': True}
+
+
+
+def test_single_append_returns_canonical_persisted_payload():
+    fixture = Fixture()
+    record = fixture.ledger.append(
+        'canonical-payload',
+        {'integer_key': 1, 'nested': {'items': (1, 2)}}
+    )
+    stored = fixture.ledger.events()[0]
+    assert record == stored
+    assert record['payload'] == {
+        'integer_key': 1, 'nested': {'items': [1, 2]}
+    }
+    return {'returned_payload_matches_persisted_canonical_json': True}
