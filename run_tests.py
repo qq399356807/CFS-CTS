@@ -47,6 +47,7 @@ def main():
         ('SEC-32', 'anchor rejects unsupported ledger versions', sec.test_anchor_rejects_unsupported_ledger_version),
         ('SEC-33', 'ledger and anchor reject duplicate JSON object keys', sec.test_duplicate_json_keys_rejected_in_ledger_and_anchor),
         ('SEC-34', 'single append returns canonical persisted payload', sec.test_single_append_returns_canonical_persisted_payload),
+        ('SEC-35', 'anchor rejects unknown checkpoint fields', sec.test_anchor_rejects_unknown_checkpoint_fields),
         ('SEC-27', 'integrity checker rejects malformed anchor version type', sec.test_integrity_rejects_anchor_with_non_string_version),
     ]
     out = []
