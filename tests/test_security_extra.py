@@ -474,3 +474,41 @@ def test_anchor_rejects_negative_existing_ledger_sequence():
         assert 'invalid existing ledger sequence' in str(exc)
         return {'negative_existing_ledger_sequence_rejected': True}
     raise AssertionError('anchor accepted negative ledger_seq in existing history')
+
+
+
+def test_anchor_rejects_unsupported_ledger_version():
+    from src.audit_anchor import checkpoint_digest
+    fixture = Fixture()
+    head = '0' * 64
+    unsupported = 'CFS-CTS-LEDGER-2'
+    incoming = {
+        'anchor_seq': 1, 'ledger_version': unsupported,
+        'ledger_seq': 0, 'head': head,
+        'checkpoint_digest': checkpoint_digest(unsupported, 0, head)
+    }
+    try:
+        fixture.anchor.commit(incoming)
+    except ValueError as exc:
+        assert 'unsupported ledger_version' in str(exc)
+    else:
+        raise AssertionError('anchor accepted an unsupported incoming ledger version')
+    assert fixture.anchor.history() == []
+
+    existing = {
+        'anchor_seq': 1, 'ledger_version': unsupported,
+        'ledger_seq': 0, 'head': head,
+        'checkpoint_digest': checkpoint_digest(unsupported, 0, head)
+    }
+    fixture.anchor.path.write_text(json.dumps(existing, sort_keys=True, separators=(',', ':')) + '\\n')
+    valid_next = {
+        'anchor_seq': 2, 'ledger_version': 'CFS-CTS-LEDGER-1',
+        'ledger_seq': 0, 'head': head,
+        'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', 0, head)
+    }
+    try:
+        fixture.anchor.commit(valid_next)
+    except ValueError as exc:
+        assert 'invalid existing ledger version' in str(exc)
+        return {'unsupported_incoming_and_historical_versions_rejected': True}
+    raise AssertionError('anchor accepted unsupported ledger version in existing history')
