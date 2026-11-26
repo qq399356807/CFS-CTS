@@ -134,9 +134,12 @@ class LocalSimulatedAnchor(AnchorProtocol):
     def _locked(self):
         """Cross-process advisory lock; only coordinates cooperating writers."""
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        fd = None
+        stream = None
         try:
             fd = _open_nofollow(self.lock_path, os.O_RDWR | os.O_CREAT)
             stream = os.fdopen(fd, "r+b")
+            fd = None
             if os.name == "nt":
                 import msvcrt
                 stream.seek(0, os.SEEK_END)
@@ -150,7 +153,10 @@ class LocalSimulatedAnchor(AnchorProtocol):
                 fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
             return stream
         except Exception as exc:
-            stream.close()
+            if stream is not None:
+                stream.close()
+            elif fd is not None:
+                os.close(fd)
             raise RuntimeError(f"cannot acquire anchor lock: {exc}") from exc
 
     @staticmethod
