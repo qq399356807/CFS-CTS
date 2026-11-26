@@ -84,3 +84,10 @@ python run_tests.py
 ```
 
 See [SECURITY_MODEL.md](SECURITY_MODEL.md) for the threat assumptions and production release gates, and [CHANGELOG.md](CHANGELOG.md) for hardening history.
+
+
+## Final 0.1.4 hardening notes
+
+The 0.1.4 candidate also includes strict duplicate-key/non-standard-JSON rejection, canonical persisted payloads, exact checkpoint-field validation, final-component symlink and non-regular-file rejection for ledger/anchor/lock paths, and complete handling of short storage writes. File-write `fsync` errors are surfaced rather than treated as success.
+
+The current CI run validates 45 adversarial cases across Python 3.11–3.13 on Ubuntu, Windows, and macOS (9 matrix jobs). This is a prototype validation result, not a production security certification. Directory-ancestor symlinks are not independently pinned; use a trusted, access-controlled parent directory. A crash or storage failure can still leave a partial JSONL record or batch, which is detected and requires forensic review rather than automatic repair.
