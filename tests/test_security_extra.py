@@ -587,3 +587,69 @@ def test_anchor_rejects_unknown_checkpoint_fields():
     assert not result['ok']
     assert any(issue['type'] == 'INVALID_ANCHOR_CHECKPOINT' for issue in result['issues'])
     return {'unknown_incoming_historical_and_verified_checkpoint_fields_rejected': True}
+
+
+
+def test_symlinked_ledger_anchor_and_lock_files_rejected():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        victim = root / 'victim.txt'
+        victim.write_text('do-not-touch', encoding='utf-8')
+        try:
+            # A symlinked lock must not redirect advisory locking to an unrelated file.
+            ledger_path = root / 'ledger.jsonl'
+            (root / 'ledger.jsonl.lock').symlink_to(victim)
+            from src.event_ledger import EventLedger
+            from src.timebase import TimeBase
+            ledger = EventLedger(ledger_path, TimeBase())
+            try:
+                ledger.append('blocked-lock', {})
+            except OSError:
+                pass
+            else:
+                raise AssertionError('ledger followed a symlinked lock file')
+            assert victim.read_text(encoding='utf-8') == 'do-not-touch'
+            assert not ledger_path.exists()
+
+            # A symlinked ledger must not redirect reads or appends to another file.
+            ledger_path.unlink(missing_ok=True)
+            (root / 'ledger.jsonl.lock').unlink(missing_ok=True)
+            ledger_path.symlink_to(victim)
+            try:
+                ledger.append('blocked-ledger', {})
+            except OSError:
+                pass
+            else:
+                raise AssertionError('ledger followed a symlinked data file')
+            assert victim.read_text(encoding='utf-8') == 'do-not-touch'
+
+            # Anchor journal and lock paths receive the same protection.
+            from src.audit_anchor import LocalSimulatedAnchor, checkpoint_digest
+            anchor_path = root / 'anchor.jsonl'
+            anchor_lock = root / 'anchor.jsonl.lock'
+            anchor_lock.symlink_to(victim)
+            anchor = LocalSimulatedAnchor(anchor_path)
+            try:
+                anchor.history()
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError('anchor followed a symlinked lock file')
+            anchor_lock.unlink()
+            anchor_path.symlink_to(victim)
+            head = '0' * 64
+            checkpoint = {
+                'anchor_seq': 1, 'ledger_version': 'CFS-CTS-LEDGER-1',
+                'ledger_seq': 0, 'head': head,
+                'checkpoint_digest': checkpoint_digest('CFS-CTS-LEDGER-1', 0, head)
+            }
+            try:
+                anchor.commit(checkpoint)
+            except OSError:
+                pass
+            else:
+                raise AssertionError('anchor followed a symlinked data file')
+            assert victim.read_text(encoding='utf-8') == 'do-not-touch'
+        except (NotImplementedError, PermissionError) as exc:
+            return {'status': 'BLOCKED', 'reason': f'symlink creation unavailable: {exc}'}
+    return {'ledger_anchor_and_lock_symlinks_rejected_without_touching_target': True}
