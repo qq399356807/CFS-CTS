@@ -96,6 +96,16 @@ class EventLedger:
                     event_payload = {} if payload is None else payload
                     if not isinstance(event_payload, dict):
                         raise TypeError('payload must be a JSON object')
+                    try:
+                        # Normalize exactly what will be persisted; callers must not
+                        # receive a subtly different in-memory record than a later read.
+                        event_payload = json.loads(
+                            canonical_bytes(event_payload),
+                            object_pairs_hook=_unique_json_object,
+                            parse_constant=_reject_json_constant
+                        )
+                    except (TypeError, ValueError, OverflowError) as exc:
+                        raise ValueError(f'payload is not canonical JSON: {exc}') from exc
                     core = {
                         'version': self.VERSION, 'seq': seq, 'event_id': eid,
                         'timestamp': ts, 'payload': event_payload,
