@@ -517,7 +517,7 @@ def test_anchor_rejects_unsupported_ledger_version():
 def test_duplicate_json_keys_rejected_in_ledger_and_anchor():
     fixture = Fixture()
     # Duplicate keys are ambiguous across JSON implementations. Reject them.
-    fixture.ledger.path.write_text('{"seq":1,"seq":2}\\n', encoding='utf-8')
+    fixture.ledger.path.write_text('{"seq":1,"seq":2}\n', encoding='utf-8')
     try:
         fixture.ledger.events()
     except ValueError as exc:
@@ -525,7 +525,7 @@ def test_duplicate_json_keys_rejected_in_ledger_and_anchor():
     else:
         raise AssertionError('ledger reader accepted duplicate JSON keys')
 
-    fixture.anchor.path.write_text('{"anchor_seq":1,"anchor_seq":2}\\n', encoding='utf-8')
+    fixture.anchor.path.write_text('{"anchor_seq":1,"anchor_seq":2}\n', encoding='utf-8')
     try:
         fixture.anchor.history()
     except ValueError as exc:
