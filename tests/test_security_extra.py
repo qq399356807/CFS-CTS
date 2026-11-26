@@ -684,10 +684,8 @@ def test_non_regular_ledger_anchor_and_lock_paths_rejected():
         else:
             raise AssertionError('anchor read accepted a FIFO')
 
-        fifo_lock = root / 'lock-target'
-        os.mkfifo(fifo_lock)
         ledger_lock_path = root / 'locked-ledger.jsonl'
-        (root / 'locked-ledger.jsonl.lock').symlink_to(fifo_lock)
+        os.mkfifo(root / 'locked-ledger.jsonl.lock')
         locked_ledger = EventLedger(ledger_lock_path, TimeBase())
         try:
             locked_ledger.append('fifo-lock', {})
