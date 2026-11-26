@@ -50,6 +50,7 @@ def main():
         ('SEC-35', 'anchor rejects unknown checkpoint fields', sec.test_anchor_rejects_unknown_checkpoint_fields),
         ('SEC-36', 'symlinked ledger, anchor, and lock files rejected', sec.test_symlinked_ledger_anchor_and_lock_files_rejected),
         ('SEC-37', 'non-regular ledger, anchor, and lock files rejected', sec.test_non_regular_ledger_anchor_and_lock_paths_rejected),
+        ('SEC-38', 'short storage writes completed and fsync failures surfaced', sec.test_short_storage_writes_are_completed_and_fsync_failure_is_reported),
         ('SEC-27', 'integrity checker rejects malformed anchor version type', sec.test_integrity_rejects_anchor_with_non_string_version),
     ]
     out = []
